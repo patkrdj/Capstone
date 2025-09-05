@@ -1,0 +1,116 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nginx 예시 - Capstone</title>
+    <style>
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 0;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 10px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.3);
+            text-align: center;
+            max-width: 500px;
+        }
+        h1 {
+            color: #333;
+            margin-bottom: 1rem;
+        }
+        .status {
+            background: #4CAF50;
+            color: white;
+            padding: 1rem;
+            border-radius: 5px;
+            margin: 1rem 0;
+        }
+        .info {
+            background: #f0f0f0;
+            padding: 1rem;
+            border-radius: 5px;
+            margin: 1rem 0;
+            text-align: left;
+        }
+        .api-test {
+            margin-top: 1rem;
+        }
+        button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 5px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #5a6fd8;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🚀 Nginx 예시 페이지</h1>
+        
+        <div class="status">
+            ✅ Nginx가 성공적으로 실행되고 있습니다!
+        </div>
+        
+        <div class="info">
+            <h3>📋 현재 설정:</h3>
+            <ul>
+                <li><strong>서버:</strong> Nginx</li>
+                <li><strong>포트:</strong> 80</li>
+                <li><strong>프로젝트:</strong> Capstone</li>
+                <li><strong>환경:</strong> Docker</li>
+            </ul>
+        </div>
+        
+        <div class="api-test">
+            <h3>📦 정적 파일 데모</h3>
+            <p>
+                - HTML: <a href="/static/hello.html">/static/hello.html</a>
+            </p>
+            <p>
+                - 로그인: <a href="/static/login.html">/static/login.html</a>
+            </p>
+            <p>
+                - JSON: <button onclick="loadStaticJSON()">/static/sample.json 불러오기</button>
+            </p>
+            <pre id="static-result" style="text-align:left; background:#f7f7f7; padding:10px; border-radius:6px; overflow:auto;"></pre>
+        </div>
+        
+        <div class="info">
+            <h3>📚 사용법:</h3>
+            <p>1. <code>docker-compose up -d</code> 실행</p>
+            <p>2. 브라우저에서 <code>http://localhost</code> 접속</p>
+            <p>3. 정적 파일: <code>/static/hello.html</code>, <code>/static/login.html</code>, <code>/static/sample.json</code></p>
+        </div>
+    </div>
+
+    <script>
+        async function loadStaticJSON() {
+            const el = document.getElementById('static-result');
+            el.textContent = '⏳ 정적 JSON 불러오는 중...';
+            try {
+                const res = await fetch('/static/sample.json', { cache: 'no-cache' });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                const data = await res.json();
+                el.textContent = JSON.stringify(data, null, 2);
+            } catch (e) {
+                el.textContent = `❌ 오류: ${e.message}`;
+            }
+        }
+    </script>
+</body>
+</html>

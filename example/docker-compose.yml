@@ -1,0 +1,25 @@
+services:
+  nginx:
+    image: nginx:alpine
+    container_name: capstone-nginx
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf
+      - ./index.html:/usr/share/nginx/html/index.html
+      - ./static:/usr/share/nginx/html/static
+    restart: unless-stopped
+    depends_on:
+      - spring-api
+
+  spring-api:
+    build: ./spring-api
+    container_name: spring-api
+    environment:
+      - JWT_SECRET=VGhpcy1pcy1hLXN1cGVyLXNlY3JldC1zZWVkLWF0LWxlYXN0LTMyLWNoYXJzLWxvbmc=
+      - JWT_TTL_SECONDS=900
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    volumes:
+      - ./spring-api/data:/data
