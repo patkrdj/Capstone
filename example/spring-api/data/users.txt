@@ -1,4 +1,0 @@
-newuser:$2a$10$e.62lLOIwRQTeyvVG0S.AOWLbz.gImKzHdfmqmbJmPDRh2qEj6wz6
-1234:$2a$10$O3C5eV5zBvyDOc2/Ao0m.ODuu.9nTXBR9RmmpVePLwKTQzQoTymUy
-admin:$2a$10$x8hgWp7He/wV/b1PuF2LSOQjASmslUnkAIqsoTetIn9MCbP1KqvaS
-newuser2:$2a$10$/jgNwvUw5gGwRs/gL8ngIufIKe4Ny8n0WaQ/lwPbokXv145Lx/vwW
