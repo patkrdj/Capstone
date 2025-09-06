@@ -1,6 +1,7 @@
 package com.example.lapisblue.lapisblue.Controller;
 
 import com.example.lapisblue.lapisblue.DTO.LoginResultResponse;
+import com.example.lapisblue.lapisblue.DTO.SignupRequest;
 import com.example.lapisblue.lapisblue.Util.JwtUtil;
 import com.example.lapisblue.lapisblue.service.AuthService;
 import lombok.RequiredArgsConstructor;
@@ -33,6 +34,16 @@ public class LoginController {
             return ResponseEntity.ok(java.util.Map.of("accessToken", token));
         }catch(IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+    }
+
+    @PostMapping("/signup")
+    public ResponseEntity<String> signup(@RequestBody SignupRequest request) {
+        try {
+            authService.registerUser(request);
+            return ResponseEntity.ok("회원가입 성공");
+        } catch (IllegalArgumentException e) {
+            return ResponseEntity.badRequest().body(e.getMessage());
         }
     }
 }
