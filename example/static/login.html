@@ -25,7 +25,7 @@
     <input id="password" type="password" placeholder="password" value="password" />
     <div class="row">
       <button id="loginBtn">로그인</button>
-      <button id="signupBtn" class="secondary"><a href="/static/signup.html">회원가입</a></button>
+      <button id="signupBtn" class="secondary">회원가입</button>
       <button id="meBtn" class="secondary">/me 조회</button>
     </div>
     <p id="status"></p>
@@ -68,17 +68,11 @@
       } catch (e) { setStatus('❌ /me 실패'); setOutput(String(e)); }
     });
 
-    /*
+    
     document.getElementById('signupBtn').addEventListener('click', async () => {
-      setStatus('⏳ 회원가입 중...'); setOutput('');
-      const username = document.getElementById('username').value.trim();
-      const password = document.getElementById('password').value;
-      try {
-        const res = await axios.post('/api/signup', { username, password });
-        setStatus('✅ 회원가입 성공'); setOutput(res.data);
-      } catch (e) { setStatus('❌ 회원가입 실패'); setOutput(String(e)); }
+      window.location.href = '/static/signup.html';
     });
-    */
+    
 
   </script>
 </body>
