@@ -3,77 +3,97 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>로그인</title>
+  <title>블루레이 추천 - 로그인</title>
   <style>
-    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans KR', Arial, sans-serif; margin: 40px; background: #f8fafc; }
-    .card { background:#fff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 20px; max-width: 420px; box-shadow: 0 6px 18px rgba(0,0,0,0.06); margin:auto; }
-    h1 { margin-top: 0; }
-    label { display:block; margin: 10px 0 6px; }
-    input { width: 100%; padding: 10px; border: 1px solid #cbd5e1; border-radius: 6px; }
-    button { margin-top: 14px; padding: 10px 16px; border: none; border-radius: 6px; background:#6366f1; color:#fff; cursor:pointer; }
-    button.secondary { background:#0ea5e9; }
-    pre { background:#0b1020; color:#d1d5db; padding:10px; border-radius:6px; overflow:auto; }
-    .row { display:flex; gap:8px; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Noto Sans KR', Arial, sans-serif; margin: 0; padding: 0 16px; color: #222; }
+    header, footer { padding: 16px 0; }
+    header { border-bottom: 1px solid #e5e5e5; }
+    footer { border-top: 1px solid #e5e5e5; margin-top: 40px; padding-top: 24px; color: #666; }
+    nav a { margin-right: 12px; color: #0366d6; text-decoration: none; }
+    nav a:hover { text-decoration: underline; }
+    .section { margin: 24px 0; }
+    .card { border: 1px dashed #bbb; border-radius: 8px; background: #fafafa; padding: 20px; color: #666; max-width: 420px; margin: 0 auto; }
+    .field { display: flex; flex-direction: column; gap: 6px; margin-bottom: 12px; }
+    .input { padding: 10px 12px; border: 1px solid #ddd; border-radius: 6px; }
+    .button { width: 100%; padding: 10px 14px; border: 1px solid #ddd; background: #fff; border-radius: 6px; cursor: pointer; }
+    .row { display: flex; gap: 12px; }
   </style>
+  <!-- 로그인 화면 와이어프레임 -->
+  <!-- 이메일/비밀번호, 소셜 로그인 버튼, 회원가입 링크 -->
 </head>
 <body>
-  <div class="card">
-    <h1>로그인</h1>
-    <label for="username">아이디</label>
-    <input id="username" placeholder="admin" value="admin" />
-    <label for="password">비밀번호</label>
-    <input id="password" type="password" placeholder="password" value="password" />
-    <div class="row">
-      <button id="loginBtn">로그인</button>
-      <button id="signupBtn" class="secondary">회원가입</button>
-      <button id="meBtn" class="secondary">/me 조회</button>
-    </div>
-    <p id="status"></p>
-    <pre id="output"></pre>
-    <p><a href="/">홈으로</a></p>
-  </div>
-  <script src="https://cdn.jsdelivr.net/npm/axios/dist/axios.min.js"></script>
+  <header>
+    <nav>
+      <strong>BLURAY</strong>
+      <a href="/static/home.html">홈</a>
+      <a href="/static/search.html">검색</a>
+      <a href="/static/login.html">로그인</a>
+      <a href="/static/profile.html">프로필</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="section">
+      <h1 style="text-align:center;">로그인</h1>
+      <div class="card">
+        <form id="login-form">
+          <div class="field">
+            <label for="usernameOrEmail">아이디 또는 이메일</label>
+            <input id="usernameOrEmail" class="input" type="text" placeholder="아이디 또는 이메일" required />
+          </div>
+          <div class="field">
+            <label for="password">비밀번호</label>
+            <input id="password" class="input" type="password" placeholder="••••••••" required />
+          </div>
+          <button class="button" type="submit">로그인</button>
+          <div id="login-message" style="text-align:center; margin: 10px 0; color:#999;"></div>
+          <div style="margin-top:12px; text-align:center;">
+            계정이 없으신가요? <a href="/static/signup.html">회원가입</a>
+          </div>
+        </form>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div>© 2025 Blu-ray Recommender</div>
+  </footer>
+  <script src="https://cdn.jsdelivr.net/npm/axios@1.4.0/dist/axios.min.js"></script>
   <script>
-    const statusEl = document.getElementById('status');
-    const outEl = document.getElementById('output');
-
-    function setStatus(text) { statusEl.textContent = text; }
-    function setOutput(obj) { outEl.textContent = typeof obj === 'string' ? obj : JSON.stringify(obj, null, 2); }
-
-    // Axios 기본 헤더 설정
-    if (window.axios) {
-      axios.defaults.headers.common['Accept'] = 'application/json';
-    }
-
-    document.getElementById('loginBtn').addEventListener('click', async () => {
-      setStatus('⏳ 로그인 중...'); setOutput('');
-      const username = document.getElementById('username').value.trim();
+    const form = document.getElementById('login-form');
+    const message = document.getElementById('login-message');
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      message.textContent = '';
+      message.style.color = '#999';
+      const usernameOrEmail = (document.getElementById('usernameOrEmail').value || '').trim();
       const password = document.getElementById('password').value;
+      if (!usernameOrEmail || !password) {
+        message.style.color = '#d00';
+        message.textContent = '아이디/이메일과 비밀번호를 입력하세요.';
+        return;
+      }
       try {
-        const { data } = await axios.post('/api/login', { usernameOrEmail: username, password });
-        if (!data.accessToken) throw new Error('토큰 없음');
-        localStorage.setItem('accessToken', data.accessToken);
-        setStatus('✅ 로그인 성공');
-        setOutput({ accessToken: data.accessToken.substring(0, 20) + '...' });
-      } catch (e) { setStatus('❌ 로그인 실패'); setOutput(String(e)); }
+        const res = await axios.post('/api/login', { usernameOrEmail, password });
+        if (res.data && res.data.accessToken) {
+          localStorage.setItem('accessToken', res.data.accessToken);
+          message.style.color = 'green';
+          message.textContent = '로그인 성공! 이동합니다...';
+          window.location.href = '/static/home.html';
+        } else {
+          message.style.color = '#d00';
+          message.textContent = '로그인 응답이 올바르지 않습니다.';
+        }
+      } catch (err) {
+        message.style.color = '#d00';
+        if (err.response && err.response.status === 401) {
+          message.textContent = '아이디/이메일 또는 비밀번호가 올바르지 않습니다.';
+        } else {
+          message.textContent = '로그인 중 오류가 발생했습니다.';
+        }
+      }
     });
-
-    document.getElementById('meBtn').addEventListener('click', async () => {
-      setStatus('⏳ /me 호출 중...'); setOutput('');
-      const token = localStorage.getItem('accessToken');
-      if (!token) { setStatus('❗ 토큰이 없습니다. 먼저 로그인하세요.'); return; }
-      try {
-        const { data } = await axios.get('/api/me', { headers: { Authorization: 'Bearer ' + token } });
-        setStatus('✅ /me 성공'); setOutput(data);
-      } catch (e) { setStatus('❌ /me 실패'); setOutput(String(e)); }
-    });
-
-    
-    document.getElementById('signupBtn').addEventListener('click', async () => {
-      window.location.href = '/static/signup.html';
-    });
-    
-
   </script>
 </body>
 </html>
+
