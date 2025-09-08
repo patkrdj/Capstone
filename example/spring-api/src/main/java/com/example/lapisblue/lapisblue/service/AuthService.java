@@ -2,8 +2,12 @@ package com.example.lapisblue.lapisblue.service;
 
 import com.example.lapisblue.lapisblue.DTO.SignupRequest;
 import com.example.lapisblue.lapisblue.Util.PasswordConfig;
+import com.example.lapisblue.lapisblue.domain.Role;
 import com.example.lapisblue.lapisblue.domain.User;
+import com.example.lapisblue.lapisblue.domain.UserRoles;
+import com.example.lapisblue.lapisblue.repository.RoleRepository;
 import com.example.lapisblue.lapisblue.repository.UserRepository;
+import com.example.lapisblue.lapisblue.repository.UserRolesRepository;
 import lombok.RequiredArgsConstructor;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -13,6 +17,8 @@ import org.springframework.stereotype.Service;
 public class AuthService {
 
     private final UserRepository userRepository;
+    private final RoleRepository roleRepository;
+    private final UserRolesRepository userRoleRepository;
     private final PasswordEncoder passwordEncoder; // BCryptPasswordEncoder
 
     public void verifyLogin(String usernameOrEmail, String rawPassword) {
@@ -39,5 +45,12 @@ public class AuthService {
         user.setPasswordHash(passwordEncoder.encode(request.password()));
 
         userRepository.save(user);
+
+        Role role = roleRepository.findByName("USER");
+
+        UserRoles userRole = new UserRoles();
+        userRole.setUser_id(user.getId());
+        userRole.setRole_id(role.getId());
+        userRoleRepository.save(userRole);
     }
 }

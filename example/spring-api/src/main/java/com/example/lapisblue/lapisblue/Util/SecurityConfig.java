@@ -13,7 +13,7 @@ public class SecurityConfig {
         http.csrf(csrf -> csrf.disable()); // REST 테스트 시 편의상 비활성(운영 정책에 맞게)
         http.authorizeHttpRequests(reg -> reg
                 // 여기 공개 경로 열기: 정적/헬스/로그인/회원가입 등
-                .requestMatchers("/api/**", "/assets/**", "/", "/index.html", "/error").permitAll()
+                .requestMatchers("/api/**", "/assets/**", "/", "/error").permitAll()
                 .anyRequest().authenticated()
         );
 
