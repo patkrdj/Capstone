@@ -1,5 +1,6 @@
 package com.example.lapisblue.lapisblue.Util;
 
+import io.jsonwebtoken.Jws;
 import io.jsonwebtoken.Jwts;
 import io.jsonwebtoken.SignatureAlgorithm;
 import io.jsonwebtoken.io.Decoders;
@@ -29,6 +30,13 @@ public class JwtUtil {
                 .setExpiration(Date.from(exp))
                 .signWith(key, SignatureAlgorithm.HS256)
                 .compact();
+    }
+
+    public Jws<io.jsonwebtoken.Claims> parse(String token) {
+        return Jwts.parserBuilder()
+                .setSigningKey(key)
+                .build()
+                .parseClaimsJws(token);
     }
 }
 

@@ -9,6 +9,7 @@ import lombok.Setter;
 @Getter
 @Table(name = "user_roles")
 public class UserRoles {
+    @Id
     @Column(name = "user_id")
     private int user_id;
 

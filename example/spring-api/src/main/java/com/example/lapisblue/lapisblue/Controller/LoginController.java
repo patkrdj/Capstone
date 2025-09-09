@@ -7,6 +7,7 @@ import com.example.lapisblue.lapisblue.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -34,6 +35,25 @@ public class LoginController {
             return ResponseEntity.ok(java.util.Map.of("accessToken", token));
         }catch(IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
+        }
+    }
+
+    @GetMapping("/me")
+    public ResponseEntity<?> me(@org.springframework.web.bind.annotation.RequestHeader(value = "Authorization", required = false) String authorization) {
+        try {
+            if (authorization == null || !authorization.startsWith("Bearer ")) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Missing Authorization header");
+            }
+            String token = authorization.substring("Bearer ".length());
+            var jws = jwtUtil.parse(token);
+            String subject = jws.getBody().getSubject();
+            Object role = jws.getBody().get("role");
+            return ResponseEntity.ok(java.util.Map.of(
+                    "usernameOrEmail", subject,
+                    "role", role
+            ));
+        } catch (io.jsonwebtoken.JwtException e) {
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Invalid token");
         }
     }
 

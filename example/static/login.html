@@ -51,6 +51,10 @@
             계정이 없으신가요? <a href="/static/signup.html">회원가입</a>
           </div>
         </form>
+        <div style="margin-top:12px; text-align:center;">
+          <button class="button" type="button" id="me-button">내 정보 불러오기</button>
+        </div>
+        <pre id="me-output" style="background:#fafafa; border:1px dashed #bbb; padding:10px; border-radius:6px; margin-top:10px; white-space:pre-wrap;"></pre>
       </div>
     </section>
   </main>
@@ -79,7 +83,7 @@
           localStorage.setItem('accessToken', res.data.accessToken);
           message.style.color = 'green';
           message.textContent = '로그인 성공! 이동합니다...';
-          window.location.href = '/static/home.html';
+          //window.location.href = '/static/home.html';
         } else {
           message.style.color = '#d00';
           message.textContent = '로그인 응답이 올바르지 않습니다.';
@@ -89,7 +93,30 @@
         if (err.response && err.response.status === 401) {
           message.textContent = '아이디/이메일 또는 비밀번호가 올바르지 않습니다.';
         } else {
-          message.textContent = '로그인 중 오류가 발생했습니다.';
+          message.textContent = '로그인 중 오류가 발생했습니다.' + (err.message || '');
+        }
+      }
+    });
+
+    const meButton = document.getElementById('me-button');
+    const meOutput = document.getElementById('me-output');
+    meButton.addEventListener('click', async () => {
+      meOutput.textContent = '';
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        meOutput.textContent = '토큰이 없습니다. 먼저 로그인하세요.';
+        return;
+      }
+      try {
+        const res = await axios.get('/api/me', {
+          headers: { Authorization: `Bearer ${token}` }
+        });
+        meOutput.textContent = JSON.stringify(res.data, null, 2);
+      } catch (err) {
+        if (err.response) {
+          meOutput.textContent = `오류 ${err.response.status}: ${JSON.stringify(err.response.data)}`;
+        } else {
+          meOutput.textContent = '요청 실패: ' + (err.message || '');
         }
       }
     });
