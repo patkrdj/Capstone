@@ -49,6 +49,7 @@ public class LoginController {
             var jws = jwtUtil.parse(token);
             String subject = jws.getBody().getSubject();
             Object role = jws.getBody().get("role");
+<<<<<<< HEAD
             var userOpt = userRepository.findByUsername(subject)
                     .or(() -> userRepository.findByEmail(subject));
             if (userOpt.isEmpty()) {
@@ -59,6 +60,10 @@ public class LoginController {
                     "usernameOrEmail", subject,
                     "username", user.getUsername(),
                     "email", user.getEmail(),
+=======
+            return ResponseEntity.ok(java.util.Map.of(
+                    "usernameOrEmail", subject,
+>>>>>>> eab1c85 (Implement 'api/me' in Spring Boot)
                     "role", role
             ));
         } catch (io.jsonwebtoken.JwtException e) {
