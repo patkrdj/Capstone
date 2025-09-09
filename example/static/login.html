@@ -55,6 +55,9 @@
           <button class="button" type="button" id="me-button">내 정보 불러오기</button>
         </div>
         <pre id="me-output" style="background:#fafafa; border:1px dashed #bbb; padding:10px; border-radius:6px; margin-top:10px; white-space:pre-wrap;"></pre>
+        <div style="margin-top:12px; text-align:center;">
+          <button class="button" type="button" id="logout-button">로그아웃</button>
+        </div>
       </div>
     </section>
   </main>
@@ -119,6 +122,15 @@
           meOutput.textContent = '요청 실패: ' + (err.message || '');
         }
       }
+    });
+
+    const logoutButton = document.getElementById('logout-button');
+    logoutButton.addEventListener('click', () => {
+      localStorage.removeItem('accessToken');
+      meOutput.textContent = '';
+      message.style.color = '#999';
+      message.textContent = '로그아웃 되었습니다.';
+      // window.location.href = '/static/login.html'; // 필요 시 리다이렉트
     });
   </script>
 </body>

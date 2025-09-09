@@ -3,6 +3,7 @@ package com.example.lapisblue.lapisblue.Controller;
 import com.example.lapisblue.lapisblue.DTO.LoginResultResponse;
 import com.example.lapisblue.lapisblue.DTO.SignupRequest;
 import com.example.lapisblue.lapisblue.Util.JwtUtil;
+import com.example.lapisblue.lapisblue.repository.UserRepository;
 import com.example.lapisblue.lapisblue.service.AuthService;
 import lombok.RequiredArgsConstructor;
 import org.springframework.http.HttpStatus;
@@ -19,6 +20,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class LoginController {
 
     private final AuthService authService;
+    private final UserRepository userRepository;
     private final JwtUtil jwtUtil = new JwtUtil(
             // demo secret (Base64). replace with env var/config in production
             "VGhpcy1pcy1hLXN1cGVyLXNlY3JldC1zZWVkLWF0LWxlYXN0LTMyLWNoYXJzLWxvbmc=",
@@ -48,8 +50,16 @@ public class LoginController {
             var jws = jwtUtil.parse(token);
             String subject = jws.getBody().getSubject();
             Object role = jws.getBody().get("role");
+            var userOpt = userRepository.findByUsername(subject)
+                    .or(() -> userRepository.findByEmail(subject));
+            if (userOpt.isEmpty()) {
+                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("User not found");
+            }
+            var user = userOpt.get();
             return ResponseEntity.ok(java.util.Map.of(
                     "usernameOrEmail", subject,
+                    "username", user.getUsername(),
+                    "email", user.getEmail(),
                     "role", role
             ));
         } catch (io.jsonwebtoken.JwtException e) {

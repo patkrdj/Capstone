@@ -38,8 +38,8 @@
       <div class="row">
         <div class="avatar"></div>
         <div>
-          <h1>사용자 이름</h1>
-          <div style="color:#666;">you@example.com</div>
+          <h1 id="display-name">사용자 이름</h1>
+          <div id="display-email" style="color:#666;"></div>
           <div style="margin-top:8px;">
             <button class="button">프로필 수정</button>
             <button class="button">로그아웃</button>
@@ -73,6 +73,29 @@
   <footer>
     <div>© 2025 Blu-ray Recommender</div>
   </footer>
+  <script>
+    (async function () {
+      const token = localStorage.getItem('accessToken');
+      if (!token) {
+        window.location.href = '/static/login.html';
+        return;
+      }
+      try {
+        const res = await fetch('/api/me', { headers: { Authorization: `Bearer ${token}` } });
+        if (!res.ok) {
+          window.location.href = '/static/login.html';
+          return;
+        }
+        const data = await res.json();
+        const nameEl = document.getElementById('display-name');
+        const emailEl = document.getElementById('display-email');
+        nameEl.textContent = data.username || data.usernameOrEmail || '사용자';
+        emailEl.textContent = data.email || '';
+      } catch (e) {
+        window.location.href = '/static/login.html';
+      }
+    })();
+  </script>
 </body>
 </html>
 
