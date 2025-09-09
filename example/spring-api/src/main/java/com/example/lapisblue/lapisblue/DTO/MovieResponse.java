@@ -5,7 +5,7 @@ import com.example.lapisblue.lapisblue.domain.Movie;
 import java.time.LocalDateTime;
 import java.time.LocalTime;
 
-public record MovieRequest(
+public record MovieResponse(
         Integer id,
         String title,
         String director,
@@ -14,8 +14,8 @@ public record MovieRequest(
         String distributionCompany,
         LocalTime runningTime
 ) {
-    public static MovieRequest from(Movie movie) {
-        return new MovieRequest(
+    public static MovieResponse from(Movie movie) {
+        return new MovieResponse(
                 movie.getId(),
                 movie.getTitle(),
                 movie.getDirector(),

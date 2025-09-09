@@ -36,5 +36,10 @@ public class MovieService {
         return movieRepository.findByTitle(title)
                 .orElseThrow(() -> new IllegalArgumentException("Movie not found: " + title));
     }
+
+    @Transactional(readOnly = true)
+    public List<Movie> searchByTitle(String query) {
+        return movieRepository.findByTitleContainingIgnoreCase(query);
+    }
 }
 

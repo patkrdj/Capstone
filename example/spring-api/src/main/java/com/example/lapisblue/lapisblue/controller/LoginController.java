@@ -1,6 +1,5 @@
-package com.example.lapisblue.lapisblue.Controller;
+package com.example.lapisblue.lapisblue.controller;
 
-import com.example.lapisblue.lapisblue.DTO.LoginResultResponse;
 import com.example.lapisblue.lapisblue.DTO.SignupRequest;
 import com.example.lapisblue.lapisblue.Util.JwtUtil;
 import com.example.lapisblue.lapisblue.repository.UserRepository;

@@ -16,6 +16,7 @@ public class SecurityConfig {
     @Bean
     public SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
         http.csrf(csrf -> csrf.disable()); // REST 테스트 시 편의상 비활성(운영 정책에 맞게)
+        http.cors(cors -> cors.configurationSource(corsConfigurationSource())); // CORS 활성화
         http.authorizeHttpRequests(reg -> reg
                 // 여기 공개 경로 열기: 정적/헬스/로그인/회원가입 등
                 .requestMatchers("/api/**", "/assets/**", "/", "/error").permitAll()
