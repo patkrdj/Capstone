@@ -1,0 +1,128 @@
+## API Usage (JavaScript)
+
+### Base
+- **Base URL**: same-origin behind Nginx at `/api` (e.g., `/api/login`). If calling the Spring app directly: `http://localhost:8080/api/...`.
+- **Auth**: Bearer JWT in `Authorization` header. `me`는 토큰 필요, `movies`는 공개.
+
+### Small helper
+```javascript
+const BASE = '/api';
+
+async function apiFetch(path, { method = 'GET', body, token } = {}) {
+  const res = await fetch(`${BASE}${path}`, {
+    method,
+    headers: {
+      'Content-Type': 'application/json',
+      ...(token ? { Authorization: `Bearer ${token}` } : {})
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+  const text = await res.text();
+  const maybeJson = text ? (() => { try { return JSON.parse(text); } catch { return text; } })() : null;
+  if (!res.ok) {
+    const message = typeof maybeJson === 'string' ? maybeJson : (maybeJson?.message || res.statusText);
+    throw new Error(`${res.status} ${message}`);
+  }
+  return maybeJson;
+}
+```
+
+### 1) Login
+- POST `/api/login`
+- Body: `{ usernameOrEmail: string, password: string }`
+- 200: `{ accessToken: string }` / 401: empty body
+
+```javascript
+async function login(usernameOrEmail, password) {
+  const data = await apiFetch('/login', {
+    method: 'POST',
+    body: { usernameOrEmail, password }
+  });
+  return data.accessToken; // JWT
+}
+```
+
+### 2) Signup
+- POST `/api/signup`
+- Body: `{ username: string, email: string, password: string }`
+- 200: "회원가입 성공" (text) / 400: error message (text)
+
+```javascript
+async function signup({ username, email, password }) {
+  const result = await apiFetch('/signup', {
+    method: 'POST',
+    body: { username, email, password }
+  });
+  return result; // string
+}
+```
+
+### 3) Me
+- GET `/api/me`
+- Header: `Authorization: Bearer <token>`
+- 200: `{ usernameOrEmail, username, email, role }`
+- 401: "Missing Authorization header" | "Invalid token" | "User not found"
+
+```javascript
+async function getMe(token) {
+  return await apiFetch('/me', { token });
+}
+```
+
+### 4) Movies
+DTO shape
+```ts
+type MovieResponse = {
+  id: number;
+  title: string;
+  director: string;
+  releaseDate: string;           // ISO LocalDateTime
+  productionCompany: string;
+  distributionCompany: string;
+  runningTime: string;           // ISO LocalTime (e.g., "01:45:00")
+};
+```
+
+- List: GET `/api/movies` → `MovieResponse[]`
+```javascript
+async function listMovies() {
+  return await apiFetch('/movies');
+}
+```
+
+- Detail: GET `/api/movies/{id}` → `MovieResponse` or 404
+```javascript
+async function getMovie(id) {
+  return await apiFetch(`/movies/${id}`);
+}
+```
+
+- Search: GET `/api/movies/search?query=...` → `MovieResponse[]`
+```javascript
+async function searchMovies(query) {
+  const qs = new URLSearchParams({ query }).toString();
+  return await apiFetch(`/movies/search?${qs}`);
+}
+```
+
+### Example flow
+```javascript
+(async () => {
+  const token = await login('alice@example.com', 'secret123');
+  const me = await getMe(token);
+  const movies = await listMovies();
+})();
+```
+
+### Notes
+- Cross-origin에서 직접 호출 시 `BASE`를 `http://localhost:8080/api`처럼 API 오리진으로 설정.
+- 시간 파싱 예시:
+```javascript
+const runMinutes = (t) => {
+  const [h, m] = t.split(':').map(Number);
+  return h * 60 + m;
+};
+```
+- 토큰은 메모리 또는 `localStorage` 등에 보관 후 필요한 요청에만 첨부.
+
+
