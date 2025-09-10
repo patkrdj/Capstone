@@ -10,6 +10,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -29,18 +30,18 @@ public class LoginController {
     public static record LoginRequest(String usernameOrEmail, String password) {}
 
     @PostMapping("/login")
-    public ResponseEntity<?> login(@RequestBody LoginRequest request){
-        try{
+    public ResponseEntity<?> login(@RequestBody LoginRequest request) {
+        try {
             authService.verifyLogin(request.usernameOrEmail(), request.password());
             String token = jwtUtil.generate(request.usernameOrEmail(), java.util.Map.of("role", "USER"));
             return ResponseEntity.ok(java.util.Map.of("accessToken", token));
-        }catch(IllegalArgumentException e) {
+        } catch (IllegalArgumentException e) {
             return ResponseEntity.status(HttpStatus.UNAUTHORIZED).build();
         }
     }
 
     @GetMapping("/me")
-    public ResponseEntity<?> me(@org.springframework.web.bind.annotation.RequestHeader(value = "Authorization", required = false) String authorization) {
+    public ResponseEntity<?> me(@RequestHeader(value = "Authorization", required = false) String authorization) {
         try {
             if (authorization == null || !authorization.startsWith("Bearer ")) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body("Missing Authorization header");
@@ -49,10 +50,7 @@ public class LoginController {
             var jws = jwtUtil.parse(token);
             String subject = jws.getBody().getSubject();
             Object role = jws.getBody().get("role");
-<<<<<<< HEAD
-<<<<<<< HEAD
-=======
->>>>>>> afcb7a9 (Displayed User's information)
+
             var userOpt = userRepository.findByUsername(subject)
                     .or(() -> userRepository.findByEmail(subject));
             if (userOpt.isEmpty()) {
@@ -63,13 +61,6 @@ public class LoginController {
                     "usernameOrEmail", subject,
                     "username", user.getUsername(),
                     "email", user.getEmail(),
-<<<<<<< HEAD
-=======
-            return ResponseEntity.ok(java.util.Map.of(
-                    "usernameOrEmail", subject,
->>>>>>> eab1c85 (Implement 'api/me' in Spring Boot)
-=======
->>>>>>> afcb7a9 (Displayed User's information)
                     "role", role
             ));
         } catch (io.jsonwebtoken.JwtException e) {

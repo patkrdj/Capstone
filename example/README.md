@@ -34,6 +34,9 @@ docker-compose up -d
 
 ## 🔧 자주 쓰는 명령어
 ```bash
+# spring 파일 변경 시
+docker-compose up -d --build
+
 # 컨테이너 상태
 docker-compose ps
 
