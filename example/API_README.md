@@ -125,4 +125,49 @@ const runMinutes = (t) => {
 ```
 - 토큰은 메모리 또는 `localStorage` 등에 보관 후 필요한 요청에만 첨부.
 
+## Sales
+
+### 엔드포인트
+- GET `/api/sales?limit=<number>` → 판매 목록
+- GET `/api/sales/{id}` → 판매 단건
+- GET `/api/sales/search?query=<movieTitle>` → 영화 제목으로 판매 검색
+
+### 응답 타입 (SalesResponse)
+```ts
+type SalesResponse = {
+  id: number;
+  movieId: number | null;
+  siteName: string | null;          // yes24 | aladin | kyobo
+  siteUrl: string | null;           // 외부 구매 링크
+  price: number | null;             // 원화 정수
+  quality: string | null;           // 한 글자 등급(ex. A/B 등)
+  regionCode: number | null;        // 리전 코드
+  isLimitedEdition: boolean | null; // 한정판 여부
+};
+```
+
+### 사용 예시
+```javascript
+// 목록
+async function listSales(limit) {
+  const qs = limit ? `?limit=${encodeURIComponent(limit)}` : '';
+  return await apiFetch(`/sales${qs}`);
+}
+
+// 단건
+async function getSale(id) {
+  return await apiFetch(`/sales/${id}`);
+}
+
+// 검색 (영화 제목 기준 부분일치)
+async function searchSalesByMovieTitle(query) {
+  const qs = new URLSearchParams({ query }).toString();
+  return await apiFetch(`/sales/search?${qs}`);
+}
+```
+
+### 비고
+- 검색은 영화 제목(`movie.title`)에 대해 대소문자 무시 부분일치로 동작합니다.
+- 목록은 `limit`로 상한을 줄 수 있습니다.
+
 
