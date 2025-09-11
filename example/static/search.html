@@ -150,9 +150,9 @@
         searchResults.innerHTML = resultsHTML;
       }
 
-      // 판매 상세보기 함수 (추후 구현)
+      // 판매 상세로 이동
       window.viewSaleDetail = function(salesId, movieId) {
-        alert(`판매 ID ${salesId} / 영화 ID ${movieId ?? 'N/A'} 상세보기 (추후 구현)`);
+        window.location.href = `/static/detail.html?id=${salesId}`;
       };
     });
   </script>
