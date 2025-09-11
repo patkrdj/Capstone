@@ -85,6 +85,7 @@
         <div id="reviewAuthHint" style="margin-top:8px; color:#666; display:none;">
           리뷰를 작성하려면 로그인이 필요합니다. <a href="/static/login.html">로그인 하러가기</a>
         </div>
+        <div id="reviewListBox" style="margin-top:12px;"></div>
       </div>
     </section>
 
@@ -129,6 +130,12 @@
       async function fetchSaleById(saleId) {
         const res = await fetch(`/api/sales/${saleId}`);
         if (!res.ok) throw new Error('failed to fetch sale');
+        return await res.json();
+      }
+
+      async function fetchReviewsBySalesId(salesId) {
+        const res = await fetch(`/api/reviews?salesId=${encodeURIComponent(salesId)}`);
+        if (!res.ok) throw new Error('failed to fetch reviews');
         return await res.json();
       }
 
@@ -180,6 +187,7 @@
               }
             ]);
             wireReviewForm({ saleId: id });
+            await loadReviews(id);
           } else {
             // Try sale first (so /static/detail.html?id=<saleId> works), then fallback to movie
             try {
@@ -196,6 +204,7 @@
                 }
               ]);
               wireReviewForm({ saleId: id });
+              await loadReviews(id);
             } catch (_) {
               const movie = await fetchMovie(id);
               render(movie, []);
@@ -207,6 +216,38 @@
           console.error(e);
         }
       })();
+
+      async function loadReviews(salesId) {
+        try {
+          const list = await fetchReviewsBySalesId(salesId);
+          renderReviews(list);
+        } catch (e) {
+          console.error(e);
+          renderReviews([]);
+        }
+      }
+
+      function renderReviews(list) {
+        const box = document.getElementById('reviewListBox');
+        if (!box) return;
+        if (!Array.isArray(list) || list.length === 0) {
+          box.innerHTML = '<div style="color:#666;">아직 등록된 리뷰가 없습니다.</div>';
+          return;
+        }
+        const ul = document.createElement('ul');
+        ul.style.margin = '8px 0 0 0';
+        ul.style.paddingLeft = '16px';
+        list.forEach(r => {
+          const li = document.createElement('li');
+          const ts = r.createdAt ? new Date(r.createdAt).toLocaleString('ko-KR') : '';
+          const ratingText = (r.rating === 1 ? '좋아요' : (r.rating === 0 ? '보통' : '별로'));
+          const userLabel = r.username ? `[${r.username}] ` : (r.userId != null ? `[user:${r.userId}] ` : '');
+          li.textContent = `${userLabel}${ratingText}${r.reviewComment ? ' - ' + r.reviewComment : ''}${ts ? ' (' + ts + ')' : ''}`;
+          ul.appendChild(li);
+        });
+        box.innerHTML = '';
+        box.appendChild(ul);
+      }
 
       function wireReviewForm(ctx) {
         const btn = document.getElementById('submitReview');
@@ -250,6 +291,7 @@
             if (!res.ok) throw new Error('failed to submit review');
             alert('리뷰가 등록되었습니다.');
             commentInput.value = '';
+            await loadReviews(salesId);
           } catch (e) {
             console.error(e);
             alert('리뷰 등록에 실패했습니다.');

@@ -1,6 +1,7 @@
 package com.example.lapisblue.lapisblue.controller;
 
 import com.example.lapisblue.lapisblue.DTO.ReviewRequest;
+import com.example.lapisblue.lapisblue.DTO.ReviewResponse;
 import com.example.lapisblue.lapisblue.Util.JwtUtil;
 import com.example.lapisblue.lapisblue.repository.UserRepository;
 import com.example.lapisblue.lapisblue.service.ReviewService;
@@ -44,6 +45,44 @@ public class ReviewController {
 
         reviewService.createOrUpdate(userId, req);
         return ResponseEntity.ok().build();
+    }
+
+    @GetMapping
+    public ResponseEntity<java.util.List<ReviewResponse>> list(
+            @RequestParam(required = false) Integer salesId,
+            @RequestParam(required = false) Integer userId
+    ) {
+        try {
+            if (salesId != null) {
+                var list = reviewService.findBySalesId(salesId);
+                var userIds = list.stream()
+                        .map(r -> r.getId() != null ? r.getId().getUserId() : null)
+                        .filter(java.util.Objects::nonNull)
+                        .collect(java.util.stream.Collectors.toSet());
+                var users = userRepository.findAllById(userIds);
+                var idToUsername = new java.util.HashMap<Integer, String>();
+                for (var u : users) {
+                    idToUsername.put(u.getId(), u.getUsername());
+                }
+                var withUsers = list.stream()
+                        .map(r -> {
+                            Integer uid = r.getId() != null ? r.getId().getUserId() : null;
+                            String username = uid != null ? idToUsername.get(uid) : null;
+                            return ReviewResponse.from(r, username);
+                        })
+                        .toList();
+                return ResponseEntity.ok(withUsers);
+            }
+            if (userId != null) {
+                var list = reviewService.findByUserId(userId);
+                var username = userRepository.findById(userId).map(u -> u.getUsername()).orElse(null);
+                var withUsers = list.stream().map(r -> ReviewResponse.from(r, username)).toList();
+                return ResponseEntity.ok(withUsers);
+            }
+            return ResponseEntity.badRequest().build();
+        } catch (Exception e) {
+            return ResponseEntity.status(500).body(java.util.List.of());
+        }
     }
 }
 

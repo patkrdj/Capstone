@@ -6,7 +6,6 @@ services:
       - "80:80"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf
-      - ./index.html:/usr/share/nginx/html/index.html
       - ./static:/usr/share/nginx/html/static
     restart: unless-stopped
     depends_on:

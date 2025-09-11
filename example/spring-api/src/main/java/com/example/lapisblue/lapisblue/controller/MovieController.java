@@ -36,16 +36,6 @@ public class MovieController {
         }
     }
 
-    @GetMapping("/test/{id}")
-    public ResponseEntity<String> testMovie(@PathVariable Integer id) {
-        try{
-            Movie movie = movieService.findById(id);
-            return ResponseEntity.ok("Found movie: " + movie.getTitle());
-        }catch (Exception e){
-            return ResponseEntity.ok("Error: " + e.getMessage());
-        }
-    }
-
     @GetMapping("/search")
     public ResponseEntity<List<MovieResponse>> searchMovies(@RequestParam String query) {
         try {
