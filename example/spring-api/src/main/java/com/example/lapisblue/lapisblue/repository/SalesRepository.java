@@ -1,0 +1,23 @@
+package com.example.lapisblue.lapisblue.repository;
+
+import com.example.lapisblue.lapisblue.domain.Sales;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.data.jpa.repository.Query;
+import org.springframework.data.repository.query.Param;
+
+public interface SalesRepository extends JpaRepository<Sales, Integer> {
+    java.util.List<Sales> findByMovie_TitleContainingIgnoreCase(String title);
+
+    // IDs only
+    @Query("select s.id from Sales s")
+    java.util.List<Integer> findAllIds();
+
+    @Query("select s.id from Sales s where s.movie.id = :movieId")
+    java.util.List<Integer> findIdsByMovieId(@Param("movieId") Integer movieId);
+
+    @Query("select s.id from Sales s where lower(s.movie.title) like lower(concat('%', :title, '%'))")
+    java.util.List<Integer> findIdsByMovieTitleLike(@Param("title") String title);
+}
+
+
+

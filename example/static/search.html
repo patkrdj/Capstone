@@ -47,7 +47,7 @@
     <section class="section">
       <h1>검색</h1>
       <div class="row">
-        <input id="searchInput" class="search-input" type="search" placeholder="제목, 감독, 배우로 검색" />
+        <input id="searchInput" class="search-input" type="search" placeholder="영화 제목으로 판매 검색" />
         <button id="searchButton" class="button">검색</button>
       </div>
     </section>
@@ -110,14 +110,14 @@
         searchResults.innerHTML = '<div class="loading">검색 중...</div>';
 
         try {
-          const response = await fetch(`/api/movies/search?query=${encodeURIComponent(query)}`);
+          const response = await fetch(`/api/sales/search?query=${encodeURIComponent(query)}`);
           
           if (!response.ok) {
             throw new Error('검색 요청 실패');
           }
 
-          const movies = await response.json();
-          displayResults(movies);
+          const sales = await response.json();
+          displayResults(sales);
 
         } catch (error) {
           console.error('검색 오류:', error);
@@ -125,21 +125,23 @@
         }
       }
 
-      function displayResults(movies) {
-        if (movies.length === 0) {
+      function displayResults(sales) {
+        if (sales.length === 0) {
           searchResults.innerHTML = '<div class="no-results">검색 결과가 없습니다.</div>';
           return;
         }
 
-        const resultsHTML = movies.map(movie => `
-          <div class="result" onclick="viewMovieDetail(${movie.id})">
-            <div class="poster">포스터</div>
+        const resultsHTML = sales.map(sale => `
+          <div class="result" onclick="viewSaleDetail(${sale.id}, ${sale.movieId ?? 'null'})">
+            <div class="poster">판매</div>
             <div class="movie-info">
-              <div class="movie-title">${movie.title}</div>
+              <div class="movie-title">${(sale.siteName || '판매처').toUpperCase()} ${sale.isLimitedEdition ? '[한정판]' : ''}</div>
               <div class="movie-details">
-                ${movie.director ? `감독: ${movie.director}` : ''}
-                ${movie.releaseDate ? ` | 개봉: ${new Date(movie.releaseDate).getFullYear()}` : ''}
-                ${movie.productionCompany ? ` | 제작: ${movie.productionCompany}` : ''}
+                ${sale.price != null ? `가격: ${Number(sale.price).toLocaleString('ko-KR')}원` : ''}
+                ${sale.quality ? ` | 품질: ${sale.quality}` : ''}
+                ${sale.regionCode != null ? ` | 지역코드: ${sale.regionCode}` : ''}
+                ${sale.movieId != null ? ` | 영화ID: ${sale.movieId}` : ''}
+                ${sale.siteUrl ? ` | <a href="${sale.siteUrl}" target="_blank" rel="noopener">바로가기</a>` : ''}
               </div>
             </div>
           </div>
@@ -148,9 +150,9 @@
         searchResults.innerHTML = resultsHTML;
       }
 
-      // 영화 상세보기 함수 (추후 구현)
-      window.viewMovieDetail = function(movieId) {
-        alert(`영화 ID ${movieId} 상세보기 (추후 구현)`);
+      // 판매 상세보기 함수 (추후 구현)
+      window.viewSaleDetail = function(salesId, movieId) {
+        alert(`판매 ID ${salesId} / 영화 ID ${movieId ?? 'N/A'} 상세보기 (추후 구현)`);
       };
     });
   </script>
