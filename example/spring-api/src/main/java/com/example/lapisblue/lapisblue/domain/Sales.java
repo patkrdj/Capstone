@@ -34,6 +34,12 @@ public class Sales {
 
     @Column(name = "is_limited_edition")
     private Boolean isLimitedEdition;
+
+    @Column(name = "image_link", length = 1024)
+    private String imageLink;
+
+    @Column(name = "blurat_title")
+    private String bluratTitle;
 }
 
 

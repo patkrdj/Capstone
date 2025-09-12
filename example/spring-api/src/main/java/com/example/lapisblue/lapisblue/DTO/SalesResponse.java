@@ -10,10 +10,12 @@ public record SalesResponse(
         Integer price,
         String quality,
         Integer regionCode,
-        Boolean isLimitedEdition
+        Boolean isLimitedEdition,
+        String imageLink,
+        String bluratTitle
 ) {
     public static SalesResponse from(Sales s) {
-        if (s == null) return new SalesResponse(null, null, null, null, null, null, null, null);
+        if (s == null) return new SalesResponse(null, null, null, null, null, null, null, null, null, null);
         Integer movieId = (s.getMovie() != null) ? s.getMovie().getId() : null;
         return new SalesResponse(
                 s.getId(),
@@ -23,7 +25,9 @@ public record SalesResponse(
                 s.getPrice(),
                 s.getQuality(),
                 s.getRegionCode(),
-                s.getIsLimitedEdition()
+                s.getIsLimitedEdition(),
+                s.getImageLink(),
+                s.getBluratTitle()
         );
     }
 }
