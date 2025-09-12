@@ -238,8 +238,8 @@ class UserBasedCollaborativeFiltering:
 def main():
     """메인 실행 함수"""
     # 데이터 파일 경로
-    ratings_file = "/Users/ptj/Documents/Capstone/dataset/ml-latest-small/ratings.csv"
-    movies_file = "/Users/ptj/Documents/Capstone/dataset/ml-latest-small/movies.csv"
+    ratings_file = "./ml-latest-small/ratings.csv"
+    movies_file = "./ml-latest-small/movies.csv"
     
     # 협업 필터링 객체 생성
     cf = UserBasedCollaborativeFiltering(ratings_file, movies_file)
