@@ -38,8 +38,8 @@ public class Sales {
     @Column(name = "image_link", length = 1024)
     private String imageLink;
 
-    @Column(name = "blurat_title")
-    private String bluratTitle;
+    @Column(name = "bluray_title")
+    private String blurayTitle;
 }
 
 

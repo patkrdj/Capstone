@@ -12,7 +12,7 @@ public record SalesResponse(
         Integer regionCode,
         Boolean isLimitedEdition,
         String imageLink,
-        String bluratTitle
+        String blurayTitle
 ) {
     public static SalesResponse from(Sales s) {
         if (s == null) return new SalesResponse(null, null, null, null, null, null, null, null, null, null);
@@ -27,7 +27,7 @@ public record SalesResponse(
                 s.getRegionCode(),
                 s.getIsLimitedEdition(),
                 s.getImageLink(),
-                s.getBluratTitle()
+                s.getBlurayTitle()
         );
     }
 }
