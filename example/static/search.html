@@ -139,7 +139,7 @@
               <div class="movie-details">
                 ${sale.price != null ? `가격: ${Number(sale.price).toLocaleString('ko-KR')}원` : ''}
                 ${sale.quality ? ` | 품질: ${sale.quality}` : ''}
-                ${sale.regionCode != null ? ` | 지역코드: ${sale.regionCode}` : ''}
+                ${sale.regionCode ? ` | 지역코드: ${String(sale.regionCode)}` : ''}
                 ${sale.movieId != null ? ` | 영화ID: ${sale.movieId}` : ''}
                 ${sale.siteUrl ? ` | <a href="${sale.siteUrl}" target="_blank" rel="noopener">바로가기</a>` : ''}
               </div>

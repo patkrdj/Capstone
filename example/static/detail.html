@@ -158,7 +158,7 @@
               const li = document.createElement('li');
               const site = s.siteName ?? '-';
               const price = (s.price != null) ? s.price : '-';
-              const region = (s.regionCode != null) ? s.regionCode : '-';
+              const region = (s.regionCode ? String(s.regionCode) : '-');
               const quality = s.quality ?? '-';
               const link = s.siteUrl ? ` (${s.siteUrl})` : '';
               const le = s.isLimitedEdition ? ' LE' : '';

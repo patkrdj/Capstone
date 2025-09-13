@@ -2,18 +2,18 @@ package com.example.lapisblue.lapisblue.service;
 
 import com.example.lapisblue.lapisblue.domain.Sales;
 import com.example.lapisblue.lapisblue.repository.SalesRepository;
+
+import lombok.RequiredArgsConstructor;
+
 import org.springframework.stereotype.Service;
 
 import java.util.List;
 
 @Service
+@RequiredArgsConstructor
 public class SalesService {
 
     private final SalesRepository salesRepository;
-
-    public SalesService(SalesRepository salesRepository) {
-        this.salesRepository = salesRepository;
-    }
 
     public List<Sales> findAll(Integer limit) {
         List<Sales> all = salesRepository.findAll();
