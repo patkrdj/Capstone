@@ -32,6 +32,9 @@ public class SalesService {
         if (query == null || query.isBlank()) {
             return java.util.List.of();
         }
+        // 우선 blurayTitle로, 결과 없으면 영화 제목으로 재검색
+        var byBluray = salesRepository.findByBlurayTitleContainingIgnoreCase(query);
+        if (!byBluray.isEmpty()) return byBluray;
         return salesRepository.findByMovie_TitleContainingIgnoreCase(query);
     }
 }

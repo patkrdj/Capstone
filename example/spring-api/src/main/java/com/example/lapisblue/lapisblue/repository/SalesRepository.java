@@ -6,6 +6,7 @@ import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
 public interface SalesRepository extends JpaRepository<Sales, Integer> {
+    java.util.List<Sales> findByBlurayTitleContainingIgnoreCase(String blurayTitle);
     java.util.List<Sales> findByMovie_TitleContainingIgnoreCase(String title);
 
     // IDs only
@@ -17,6 +18,9 @@ public interface SalesRepository extends JpaRepository<Sales, Integer> {
 
     @Query("select s.id from Sales s where lower(s.movie.title) like lower(concat('%', :title, '%'))")
     java.util.List<Integer> findIdsByMovieTitleLike(@Param("title") String title);
+
+    @Query("select s.id from Sales s where lower(s.blurayTitle) like lower(concat('%', :keyword, '%'))")
+    java.util.List<Integer> findIdsByBlurayTitleLike(@Param("keyword") String keyword);
 }
 
 
