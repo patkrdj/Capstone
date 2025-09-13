@@ -143,6 +143,8 @@ type SalesResponse = {
   quality: string | null;           // 한 글자 등급(ex. A/B 등)
   regionCode: number | null;        // 리전 코드
   isLimitedEdition: boolean | null; // 한정판 여부
+  imageLink: string | null;         // 상품 이미지 URL
+  blurayTitle: string | null;       // 판매 타이틀(노출용)
 };
 ```
 
@@ -169,5 +171,6 @@ async function searchSalesByMovieTitle(query) {
 ### 비고
 - 검색은 영화 제목(`movie.title`)에 대해 대소문자 무시 부분일치로 동작합니다.
 - 목록은 `limit`로 상한을 줄 수 있습니다.
+- 리스트 UI 노출 시에는 `bluratTitle`이 있으면 이를 우선적으로 제목으로 사용하세요. 이미지가 있으면 `imageLink`를 썸네일로 사용할 수 있습니다.
 
 
