@@ -133,9 +133,9 @@
 
         const resultsHTML = sales.map(sale => `
           <div class="result" onclick="viewSaleDetail(${sale.id}, ${sale.movieId ?? 'null'})">
-            <div class="poster">판매</div>
+            <div class="poster">${sale.imageLink ? `<img src="${sale.imageLink}" alt="cover" style="max-width:100%;max-height:100%;" loading="lazy"/>` : '판매'}</div>
             <div class="movie-info">
-              <div class="movie-title">${(sale.siteName || '판매처').toUpperCase()} ${sale.isLimitedEdition ? '[한정판]' : ''}</div>
+              <div class="movie-title">${sale.blurayTitle || (sale.siteName || '판매처').toUpperCase()} ${sale.isLimitedEdition ? '[한정판]' : ''}</div>
               <div class="movie-details">
                 ${sale.price != null ? `가격: ${Number(sale.price).toLocaleString('ko-KR')}원` : ''}
                 ${sale.quality ? ` | 품질: ${sale.quality}` : ''}
