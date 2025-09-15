@@ -1,0 +1,22 @@
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# 시스템 패키지 (scipy 빌드 의존성 최소화 버전)
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# 소스 복사
+COPY dataset /app/dataset
+
+# 파이썬 의존성
+RUN pip install --no-cache-dir \
+    fastapi uvicorn[standard] \
+    pandas numpy scipy pymysql
+
+EXPOSE 8000
+
+CMD ["python", "/app/dataset/service.py"]
+
+

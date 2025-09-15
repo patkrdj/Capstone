@@ -97,8 +97,24 @@
       }
     }
 
-    // 페이지 로드 시 영화 제목 가져오기
-    window.addEventListener('DOMContentLoaded', fetchMovie);
+    async function fetchRecommendations() {
+      try {
+        const token = localStorage.getItem('accessToken');
+        if (!token) return;
+        const userId = Number(localStorage.getItem('userId')) || 612;
+        // 실행과 동시에 JSON 결과를 받아 바로 사용 (DB 미경유)
+        const runRes = await axios.post('/api/recommendations/run', { userId, topN: 5 }, { headers: { Authorization: `Bearer ${token}` }});
+        const payload = typeof runRes.data === 'string' ? JSON.parse(runRes.data) : runRes.data;
+        const list = Array.isArray(payload?.results) ? payload.results : [];
+        const title = list[0]?.reason ? `${list[0].reason}` : (list[0]?.movieId ? `movie:${list[0].movieId}` : '추천 준비 중');
+        document.getElementById('movie-title').textContent = title;
+      } catch (e) {
+        console.error('추천 불러오기 실패:', e);
+      }
+    }
+
+    // 페이지 로드 시 영화/추천 가져오기
+    window.addEventListener('DOMContentLoaded', () => { fetchMovie(); fetchRecommendations(); });
 
 
   </script>

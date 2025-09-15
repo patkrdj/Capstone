@@ -10,6 +10,7 @@ services:
     restart: unless-stopped
     depends_on:
       - spring-api
+      - py-reco
 
   spring-api:
     build: ./spring-api
@@ -17,8 +18,18 @@ services:
     environment:
       - JWT_SECRET=VGhpcy1pcy1hLXN1cGVyLXNlY3JldC1zZWVkLWF0LWxlYXN0LTMyLWNoYXJzLWxvbmc=
       - JWT_TTL_SECONDS=900
+      - PY_RECO_BASE=http://py-reco:8000
     ports:
       - "8080:8080"
     restart: unless-stopped
     volumes:
       - ./spring-api/data:/data
+
+  py-reco:
+    build:
+      context: ..
+      dockerfile: example/spring-api/Dockerfile.pyreco
+    container_name: py-reco
+    environment:
+      - PYTHONUNBUFFERED=1
+    restart: unless-stopped

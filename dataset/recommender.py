@@ -1,14 +1,14 @@
 from matrix_factorization_recommender import get_user_recommendations
 from content_based_filtering import SalesBasedFiltering
 import time
+import json
 
-def main():
+def main(user_id=612, top_n=20, json_output=False):
     """개인화가 강화된 SVDRecommender 사용 예제"""
     print("개인화가 강화된 SVDRecommender를 활용한 영화 추천 예제")
     print("="*90)
     
-    # 테스트할 사용자 ID들
-    user_id = 612
+    # 사용자 ID는 인자로 전달
     
     print(f"\n사용자 {user_id}의 개인화된 추천 영화:")
     
@@ -69,10 +69,59 @@ def main():
                 print(f"✅ Content-based filtering 시스템 초기화 완료")
                 
                 # Content-based filtering으로 추천받은 영화들의 최적 블루레이 찾기 (상위 20개만)
-                bluray_results = sbf.find_best_sales_for_movies(recommendations, user_id, top_n=20)
+                bluray_results = sbf.find_best_sales_for_movies(recommendations, user_id, top_n=top_n)
                 
                 # 결과 출력
                 sbf.display_movie_sales_recommendations(bluray_results, max_display=20)
+
+                # JSON 출력 모드 또는 Spring 전송
+                if json_output:
+                    payload = {
+                        'userId': user_id,
+                        'results': [
+                            {
+                                'movieId': r.get('movie_id'),
+                                'movieTitle': r.get('movie_title'),
+                                'saleId': (r.get('best_sale') or {}).get('id') if r.get('best_sale') else None,
+                                'similarityScore': r.get('similarity_score', 0.0),
+                                'reason': r.get('reason', '')
+                            } for r in (bluray_results or [])
+                        ]
+                    }
+                    try:
+                        print(">>>JSON_START>>>")
+                        print(json.dumps(payload, ensure_ascii=False))
+                        print(">>>JSON_END>>>")
+                    except Exception as je:
+                        print(f"JSON 출력 오류: {je}")
+                else:
+                    # Spring API로 결과 전송
+                    try:
+                        import os, requests
+                        spring_base = os.getenv('SPRING_BASE', 'http://localhost:8080')
+                        token = os.getenv('ACCESS_TOKEN')
+                        payload = {
+                            'userId': user_id,
+                            'results': [
+                                {
+                                    'movieId': r.get('movie_id'),
+                                    'movieTitle': r.get('movie_title'),
+                                    'saleId': (r.get('best_sale') or {}).get('id') if r.get('best_sale') else None,
+                                    'similarityScore': r.get('similarity_score', 0.0),
+                                    'reason': r.get('reason', '')
+                                } for r in (bluray_results or [])
+                            ]
+                        }
+                        headers = {'Content-Type': 'application/json'}
+                        if token:
+                            headers['Authorization'] = f'Bearer {token}'
+                        resp = requests.post(f"{spring_base}/api/recommendations/import", json=payload, headers=headers, timeout=10)
+                        if resp.status_code != 200:
+                            print(f"🔁 전송 실패: {resp.status_code} {resp.text[:200]}")
+                        else:
+                            print("✅ 추천 결과를 Spring API로 전송 완료")
+                    except Exception as e2:
+                        print(f"Spring API 전송 오류: {e2}")
                 
                 bluray_time = time.time() - bluray_start
                 print(f"\n⏱️  Content-based 블루레이 추천 시간: {bluray_time:.3f}초")
@@ -93,4 +142,10 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    import argparse
+    parser = argparse.ArgumentParser()
+    parser.add_argument("--user-id", type=int, default=612)
+    parser.add_argument("--top-n", type=int, default=20)
+    parser.add_argument("--json", action="store_true")
+    args = parser.parse_args()
+    main(user_id=args.user_id, top_n=args.top_n, json_output=args.json)
