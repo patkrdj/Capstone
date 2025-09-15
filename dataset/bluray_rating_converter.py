@@ -35,17 +35,20 @@ class BlurayRatingConverter:
     블루레이 → 영화 역변환 수식: x = (y - α - Σ(γi * feature_i)) / β
     """
     
-    def __init__(self):
+    def __init__(self, verbose=False):
+        # 상세 출력 모드
+        self.verbose = verbose
+        
         # 기본 가중치 설정 (조정 가능)
         self.weights = {
             'base_rating': 0.6,      # β: 원본 영화 평가의 가중치
             'director_factor': 0.15, # 감독 요인
             'year_factor': 0.003,    # 연도별 가중치 (최신작 선호)
             'running_time_factor': 0.001, # 러닝타임 요인
-            'quality_4k': 0.4,       # 4K 화질 가중치
-            'quality_hd': 0.2,       # HD 화질 가중치
+            'quality_4k': 0.5,       # 4K 화질 가중치 (향상됨)
+            'quality_hd': 0.3,       # HD 화질 가중치 (향상됨)
             'quality_sd': 0.0,       # SD 화질 가중치
-            'price_factor': -0.00008, # 가격 요인 (높은 가격은 평가 하락)
+            'price_factor': -0.000012, # 가격 요인 (높은 가격은 평가 하락, 적절히 조정)
             'limited_edition': 0.25, # 리미티드 에디션 가중치
             'region_code_factor': 0.05, # 지역 코드 요인
             'site_preference': {     # 사이트별 신뢰도
@@ -224,20 +227,6 @@ class BlurayRatingConverter:
             print(f"전체 리뷰 데이터 조회 오류: {e}")
             return []
     
-    def normalize_review_rating(self, review_rating: float) -> float: #change this immideately
-        """
-        리뷰 평점을 0.5-5.0 범위로 정규화
-        현재: -1, 0, 1 → 나중에: 0.5-5.0 범위
-        """
-        if review_rating == -1:
-            return 1.0  # 부정적 → 낮은 점수
-        elif review_rating == 0:
-            return 3.0  # 중립적 → 중간 점수
-        elif review_rating == 1:
-            return 5.0  # 긍정적 → 높은 점수
-        else:
-            # 이미 0.5-5.0 범위인 경우 (미래 대비)
-            return max(0.5, min(5.0, review_rating))
     
     def _load_movies_cache(self):
         """movies.csv 데이터를 캐시에 로드"""
@@ -434,11 +423,11 @@ class BlurayRatingConverter:
             print(f"User {user_id}, Sales {sales_id}에 연결된 영화가 없습니다.")
             return None
         
-        # 리뷰 평점 정규화
-        normalized_review_rating = self.normalize_review_rating(review_data.get('review_rating', 0))
+        # 리뷰 평점 (이미 5점 체계)
+        review_rating = review_data.get('review_rating', 3.0)
         
-        # 블루레이 → 영화 평점 역변환
-        movie_rating = self.reverse_convert_rating(normalized_review_rating, movie_id, review_data)
+        # 블루레이 → 영화 평점 역변환 (review_data에 sales 정보 포함)
+        movie_rating = self.reverse_convert_rating(review_rating, movie_id, review_data, review_data)
         
         # 장르 정보 추가
         genres = self.get_movie_genres_from_csv(movie_id) if movie_id else []
@@ -455,14 +444,13 @@ class BlurayRatingConverter:
             'price': review_data.get('price'),
             'quality': review_data.get('quality'),
             'is_limited_edition': review_data.get('is_limited_edition'),
-            'original_review_rating': review_data.get('review_rating'),
-            'normalized_review_rating': normalized_review_rating,
+            'review_rating': review_data.get('review_rating'),
             'converted_movie_rating': round(movie_rating, 1),
             'review_comment': review_data.get('review_comment'),
             'created_at': review_data.get('created_at')
         }
     
-    def reverse_convert_rating(self, bluray_rating: float, movie_id: int, movie_data: Dict) -> float:
+    def reverse_convert_rating(self, bluray_rating: float, movie_id: int, movie_data: Dict, sales_data: Dict = None) -> float:
         """
         블루레이 평점을 영화 평점으로 역변환
         역변환 수식: x = (y - α - Σ(γi * feature_i)) / β
@@ -475,6 +463,12 @@ class BlurayRatingConverter:
         Returns:
             변환된 영화 평점
         """
+        if self.verbose:
+            print(f"\n=== 역변환 계산 과정 ===")
+            print(f"영화: {movie_data.get('title', 'Unknown')}")
+            print(f"블루레이 평점 (y): {bluray_rating:.2f}")
+            print(f"역변환 수식: x = (y - α - Σ(γi * feature_i)) / β")
+        
         # 블루레이 특성으로 인한 보너스 점수 계산
         feature_bonus = 0.0
         
@@ -483,21 +477,196 @@ class BlurayRatingConverter:
         genre_score = self.calculate_genre_score(genres)
         feature_bonus += genre_score
         
+        if self.verbose:
+            print(f"\n1. 장르 보너스:")
+            print(f"   장르: {', '.join(genres) if genres else 'Unknown'}")
+            print(f"   장르 점수: {genre_score:.3f}")
+            print(f"   누적 보너스: {feature_bonus:.3f}")
+        
         # 연도 보너스 (제목에서 추출)
         title = movie_data.get('title', '')
         year = self.extract_year_from_title(title)
         year_score = self.weights['year_factor'] * max(0, year - 1980)
         feature_bonus += year_score
         
+        if self.verbose:
+            print(f"\n2. 연도 보너스:")
+            print(f"   개봉 연도: {year}")
+            print(f"   연도 점수: {year_score:.3f}")
+            print(f"   누적 보너스: {feature_bonus:.3f}")
+        
         # 감독 보너스
+        director_bonus = 0
         if self.is_famous_director(movie_data.get('director')):
-            feature_bonus += self.weights['director_factor']
+            director_bonus = self.weights['director_factor']
+            feature_bonus += director_bonus
+        
+        if self.verbose:
+            print(f"\n3. 감독 보너스:")
+            print(f"   감독: {movie_data.get('director') or 'Unknown'}")
+            print(f"   유명 감독 여부: {'예' if director_bonus > 0 else '아니오'}")
+            print(f"   감독 점수: {director_bonus:.3f}")
+            print(f"   누적 보너스: {feature_bonus:.3f}")
+        
+        # 블루레이 특성 정보가 있는 경우 추가 계산
+        if sales_data:
+            # 러닝타임 보너스
+            runtime = self.extract_runtime_minutes(sales_data.get('running_time'))
+            if 90 <= runtime <= 150:
+                runtime_bonus = self.weights['running_time_factor'] * 10
+            else:
+                runtime_bonus = self.weights['running_time_factor'] * max(0, 10 - abs(120 - runtime) / 10)
+            feature_bonus += runtime_bonus
+            
+            if self.verbose:
+                print(f"\n4. 러닝타임 보너스:")
+                print(f"   러닝타임: {runtime}분")
+                print(f"   러닝타임 점수: {runtime_bonus:.3f}")
+                print(f"   누적 보너스: {feature_bonus:.3f}")
+            
+            # 화질 보너스
+            quality_bonus = self.get_quality_score(sales_data.get('quality'))
+            feature_bonus += quality_bonus
+            
+        if self.verbose:
+            print(f"\n5. 화질 보너스:")
+            quality_str = sales_data.get('quality') or 'Unknown'
+            quality_type = ""
+            if quality_str != 'Unknown':
+                if '4' in quality_str.upper() or 'U' in quality_str.upper():
+                    quality_type = " (4K/UHD)"
+                elif 'H' in quality_str.upper() or 'B' in quality_str.upper():
+                    quality_type = " (HD/Blu-ray)"
+                else:
+                    quality_type = " (SD)"
+            print(f"   화질: {quality_str}{quality_type}")
+            print(f"   화질 점수: +{quality_bonus:.3f}")
+            print(f"   누적 보너스: {feature_bonus:.3f}")
+            
+            # 가격 패널티
+            price = sales_data.get('price', 0)
+            price_penalty = 0
+            if price > 0:
+                price_penalty = self.weights['price_factor'] * price
+                feature_bonus += price_penalty
+            
+            if self.verbose:
+                print(f"\n6. 가격 패널티:")
+                if price > 0:
+                    print(f"   가격: {price:,}원")
+                    print(f"   가격 패널티: {price_penalty:.3f} (높은 가격으로 인한 감점)")
+                else:
+                    print(f"   가격: 정보 없음")
+                    print(f"   가격 패널티: 0.000 (가격 정보가 없어 패널티 없음)")
+                print(f"   누적 보너스: {feature_bonus:.3f}")
+            
+            # 리미티드 에디션 보너스
+            limited_bonus = 0
+            if sales_data.get('is_limited_edition'):
+                limited_bonus = self.weights['limited_edition']
+                feature_bonus += limited_bonus
+            
+            if self.verbose:
+                print(f"\n7. 리미티드 에디션 보너스:")
+                print(f"   리미티드 에디션: {'예' if sales_data.get('is_limited_edition') else '아니오'}")
+                print(f"   리미티드 점수: {limited_bonus:.3f}")
+                print(f"   누적 보너스: {feature_bonus:.3f}")
+            
+            # 지역 코드 보너스
+            region_code = sales_data.get('region_code', 1)
+            region_bonus = 0
+            if region_code == 1:
+                region_bonus = self.weights['region_code_factor']
+                feature_bonus += region_bonus
+            
+            if self.verbose:
+                print(f"\n8. 지역 코드 보너스:")
+                print(f"   지역 코드: {region_code} ({'국내' if region_code == 1 else '수입'})")
+                print(f"   지역 점수: {region_bonus:.3f}")
+                print(f"   누적 보너스: {feature_bonus:.3f}")
+            
+            # 사이트 신뢰도 보너스
+            site_name = sales_data.get('site_name', '').lower()
+            site_bonus = 0
+            if site_name in self.weights['site_preference']:
+                site_bonus = self.weights['site_preference'][site_name]
+                feature_bonus += site_bonus
+            
+            if self.verbose:
+                print(f"\n9. 사이트 신뢰도 보너스:")
+                print(f"   사이트: {site_name}")
+                print(f"   사이트 점수: {site_bonus:.3f}")
+                print(f"   총 보너스: {feature_bonus:.3f}")
+        else:
+            if self.verbose:
+                print(f"\n⚠️  블루레이 판매 정보가 없어서 일부 요소는 계산에서 제외됩니다.")
+                print(f"   (화질, 가격, 리미티드 에디션, 러닝타임, 지역코드, 사이트 정보)")
+                print(f"   총 보너스: {feature_bonus:.3f}")
+                print(f"   📋 주의: 4K 화질과 가격 정보를 활용하려면 sales_data를 제공해야 합니다.")
         
         # 역변환 수식 적용: x = (y - α - feature_bonus) / β
         movie_rating = (bluray_rating - self.intercept - feature_bonus) / self.weights['base_rating']
         
+        if self.verbose:
+            print(f"\n{'='*60}")
+            print(f"역변환 수식 상세 계산")
+            print(f"{'='*60}")
+            print(f"📐 기본 수식: x = (y - α - Σ(γi × feature_i)) / β")
+            print(f"")
+            print(f"🔢 변수 설명:")
+            print(f"   x = 영화 평점 (구하고자 하는 값)")
+            print(f"   y = 블루레이 평점 = {bluray_rating:.2f}")
+            print(f"   α = 상수 (intercept) = {self.intercept}")
+            print(f"   β = 기본 가중치 (base_rating) = {self.weights['base_rating']}")
+            print(f"   Σ(γi × feature_i) = 모든 특성 보너스의 합 = {feature_bonus:.3f}")
+            print(f"")
+            print(f"🧮 단계별 계산:")
+            print(f"   1단계: y - α = {bluray_rating:.2f} - {self.intercept} = {bluray_rating - self.intercept:.3f}")
+            print(f"   2단계: (y - α) - Σ(γi × feature_i) = {bluray_rating - self.intercept:.3f} - ({feature_bonus:.3f}) = {bluray_rating - self.intercept - feature_bonus:.3f}")
+            print(f"   3단계: [(y - α) - Σ(γi × feature_i)] / β = {bluray_rating - self.intercept - feature_bonus:.3f} / {self.weights['base_rating']} = {movie_rating:.3f}")
+            print(f"")
+            print(f"💡 해석:")
+            if feature_bonus > 0:
+                print(f"   블루레이 특성으로 인한 보너스({feature_bonus:.3f})를 제거하여 순수한 영화 평점을 복원")
+            elif feature_bonus < 0:
+                print(f"   블루레이 특성으로 인한 패널티({feature_bonus:.3f})를 제거하여 순수한 영화 평점을 복원")
+            else:
+                print(f"   블루레이 특성의 영향이 없어 기본 변환만 적용")
+            print(f"{'='*60}")
+        
         # 0.5-5.0 범위로 클리핑
-        return max(0.5, min(5.0, movie_rating))
+        final_rating = max(0.5, min(5.0, movie_rating))
+        
+        if self.verbose:
+            print(f"\n=== 최종 결과 ===")
+            print(f"클리핑 전 영화 평점: {movie_rating:.3f}")
+            print(f"최종 영화 평점: {final_rating:.2f}/5.0")
+            if movie_rating != final_rating:
+                print(f"범위 조정됨: {movie_rating:.3f} → {final_rating:.2f}")
+            
+            # 화질과 가격 정보 활용 여부 요약
+            if sales_data:
+                quality = sales_data.get('quality')
+                price = sales_data.get('price', 0)
+                quality_bonus = self.get_quality_score(quality) if quality else 0
+                price_penalty = self.weights['price_factor'] * price if price > 0 else 0
+                
+                print(f"\n✅ 블루레이 특성 활용됨:")
+                if quality:
+                    quality_type = ""
+                    if '4' in quality.upper() or 'U' in quality.upper():
+                        quality_type = " (4K/UHD)"
+                    elif 'H' in quality.upper() or 'B' in quality.upper():
+                        quality_type = " (HD/Blu-ray)"
+                    else:
+                        quality_type = " (SD)"
+                    print(f"   화질: {quality}{quality_type} → +{quality_bonus:.3f}점")
+                if price > 0:
+                    print(f"   가격: {price:,}원 → {price_penalty:.3f}점 (패널티)")
+            else:
+                print(f"\n❌ 블루레이 특성 정보 없음: 화질, 가격 등의 정보가 활용되지 않았습니다.")
+        
+        return final_rating
     
     def batch_convert_reviews_to_ratings(self, limit: Optional[int] = None) -> List[Dict]:
         """
@@ -521,18 +690,30 @@ class BlurayRatingConverter:
         converted_ratings = []
         failed_count = 0
         
+        # 첫 3개 리뷰 변환 시에만 상세 출력 표시
+        original_verbose = self.verbose
+        
         for i, review in enumerate(reviews_data):
             if i % 100 == 0:
                 print(f"진행률: {i}/{len(reviews_data)} ({i/len(reviews_data)*100:.1f}%)")
             
+            # 첫 3개만 상세 출력, 나머지는 간단히 처리
+            if i < 3:
+                self.verbose = True
+                print(f"\n{'='*60}")
+                print(f"변환 예시 {i+1}: {review.get('title', 'Unknown')} (User: {review.get('user_id')}, Sales: {review.get('sales_id')})")
+                print(f"{'='*60}")
+            else:
+                self.verbose = False
+            
             try:
-                # 리뷰 평점 정규화
-                normalized_rating = self.normalize_review_rating(review.get('review_rating', 0))
+                # 리뷰 평점 (이미 5점 체계)
+                review_rating = review.get('review_rating', 3.0)
                 
-                # 영화 평점으로 역변환
+                # 영화 평점으로 역변환 (review에 sales 정보 포함)
                 movie_id = review.get('movie_id')
                 if movie_id:
-                    movie_rating = self.reverse_convert_rating(normalized_rating, movie_id, review)
+                    movie_rating = self.reverse_convert_rating(review_rating, movie_id, review, review)
                     
                     # 장르 정보 추가
                     genres = self.get_movie_genres_from_csv(movie_id)
@@ -549,8 +730,7 @@ class BlurayRatingConverter:
                         'price': review.get('price'),
                         'quality': review.get('quality'),
                         'is_limited_edition': review.get('is_limited_edition'),
-                        'original_review_rating': review.get('review_rating'),
-                        'normalized_review_rating': normalized_rating,
+                        'review_rating': review.get('review_rating'),
                         'converted_movie_rating': round(movie_rating, 1),
                         'review_comment': review.get('review_comment'),
                         'created_at': review.get('created_at')
@@ -564,7 +744,14 @@ class BlurayRatingConverter:
                 print(f"리뷰 변환 오류 (User: {review.get('user_id')}, Sales: {review.get('sales_id')}): {e}")
                 failed_count += 1
         
+        # verbose 모드를 원래대로 복원
+        self.verbose = original_verbose
+        
         print(f"변환 완료! 성공: {len(converted_ratings)}개, 실패: {failed_count}개")
+        if len(converted_ratings) > 0:
+            print(f"\n✅ 화질과 가격 정보가 역변환 과정에 활용되었습니다!")
+            print("위의 변환 예시들에서 블루레이 특성 정보가 어떻게 사용되었는지 확인할 수 있습니다.")
+        
         return converted_ratings
 
     def calculate_bluray_rating_for_sales(self, sales_id: int, base_rating: Optional[float] = None) -> Optional[Dict]:
@@ -621,17 +808,50 @@ class BlurayRatingConverter:
         실제 블루레이 평가 계산 로직
         수식: y^ = α + β*x + γ1*Director + γ2*Year + γ3*Genres + γ4*Quality + γ5*Price + γ6*LimitedEdition + ...
         """
+        if self.verbose:
+            print(f"\n=== 블루레이 평점 계산 과정 ===")
+            print(f"영화: {sales_data.get('title', 'Unknown')}")
+            print(f"기본 평점 (x): {base_rating:.2f}")
+            print(f"수식: y = α + β×x + Σ(γi × feature_i)")
+        
         # 기본 점수 (α + β*x)
-        score = self.intercept + self.weights['base_rating'] * base_rating
+        base_score = self.intercept + self.weights['base_rating'] * base_rating
+        score = base_score
+        feature_bonus_total = 0  # 특성 보너스 추적용
+        
+        if self.verbose:
+            print(f"\n1. 기본 점수:")
+            print(f"   α (상수): {self.intercept}")
+            print(f"   β (기본가중치): {self.weights['base_rating']}")
+            print(f"   기본 점수 = {self.intercept} + {self.weights['base_rating']} × {base_rating:.2f} = {base_score:.3f}")
+            print(f"   현재 총점: {score:.3f}")
         
         # 감독 점수
-        if self.is_famous_director(sales_data.get('director')):
-            score += self.weights['director_factor']
+        director = sales_data.get('director')
+        director_bonus = 0
+        if self.is_famous_director(director):
+            director_bonus = self.weights['director_factor']
+            score += director_bonus
+            feature_bonus_total += director_bonus
+        
+        if self.verbose:
+            print(f"\n2. 감독 점수:")
+            print(f"   감독: {director or 'Unknown'}")
+            print(f"   유명 감독 여부: {'예' if director_bonus > 0 else '아니오'}")
+            print(f"   감독 보너스: +{director_bonus:.3f}")
+            print(f"   현재 총점: {score:.3f}")
         
         # 연도 점수 (최신작일수록 높은 점수)
         year = self.extract_year_from_date(sales_data.get('release_date'))
         year_score = self.weights['year_factor'] * max(0, year - 1980)
         score += year_score
+        
+        if self.verbose:
+            print(f"\n3. 연도 점수:")
+            print(f"   개봉 연도: {year}")
+            print(f"   연도 가중치: {self.weights['year_factor']}")
+            print(f"   연도 점수 = {self.weights['year_factor']} × max(0, {year} - 1980) = {year_score:.3f}")
+            print(f"   현재 총점: {score:.3f}")
         
         # 러닝타임 점수 (적절한 길이 선호)
         runtime = self.extract_runtime_minutes(sales_data.get('running_time'))
@@ -642,38 +862,122 @@ class BlurayRatingConverter:
             runtime_bonus = self.weights['running_time_factor'] * max(0, 10 - abs(120 - runtime) / 10)
         score += runtime_bonus
         
+        if self.verbose:
+            print(f"\n4. 러닝타임 점수:")
+            print(f"   러닝타임: {runtime}분")
+            print(f"   최적 범위: 90-150분")
+            print(f"   러닝타임 보너스: +{runtime_bonus:.3f}")
+            print(f"   현재 총점: {score:.3f}")
+        
         # 장르 점수 (movies.csv에서 가져오기)
+        genre_score = 0
+        genres = []
         if movie_id:
             genres = self.get_movie_genres_from_csv(movie_id)
             genre_score = self.calculate_genre_score(genres)
             score += genre_score
         
+        if self.verbose:
+            print(f"\n5. 장르 점수:")
+            print(f"   장르: {', '.join(genres) if genres else 'Unknown'}")
+            print(f"   장르 점수: +{genre_score:.3f}")
+            print(f"   현재 총점: {score:.3f}")
+        
         # 화질 점수
-        quality_score = self.get_quality_score(sales_data.get('quality'))
+        quality = sales_data.get('quality')
+        quality_score = self.get_quality_score(quality)
         score += quality_score
+        
+        if self.verbose:
+            print(f"\n6. 화질 점수:")
+            print(f"   화질: {quality or 'Unknown'}")
+            print(f"   화질 점수: +{quality_score:.3f}")
+            print(f"   현재 총점: {score:.3f}")
         
         # 가격 점수 (높은 가격은 평가 하락)
         price = sales_data.get('price', 0)
+        price_penalty = 0
         if price > 0:
             price_penalty = self.weights['price_factor'] * price
             score += price_penalty
         
+        if self.verbose:
+            print(f"\n7. 가격 점수:")
+            print(f"   가격: {price:,}원")
+            print(f"   가격 가중치: {self.weights['price_factor']}")
+            print(f"   가격 패널티: {price_penalty:.3f}")
+            print(f"   현재 총점: {score:.3f}")
+        
         # 리미티드 에디션 보너스
+        limited_bonus = 0
         if sales_data.get('is_limited_edition'):
-            score += self.weights['limited_edition']
+            limited_bonus = self.weights['limited_edition']
+            score += limited_bonus
+        
+        if self.verbose:
+            print(f"\n8. 리미티드 에디션:")
+            print(f"   리미티드 에디션: {'예' if sales_data.get('is_limited_edition') else '아니오'}")
+            print(f"   리미티드 보너스: +{limited_bonus:.3f}")
+            print(f"   현재 총점: {score:.3f}")
         
         # 지역 코드 점수 (1: 국내, 3: 수입 등)
         region_code = sales_data.get('region_code', 1)
+        region_bonus = 0
         if region_code == 1:  # 국내 판매
-            score += self.weights['region_code_factor']
+            region_bonus = self.weights['region_code_factor']
+            score += region_bonus
+        
+        if self.verbose:
+            print(f"\n9. 지역 코드:")
+            print(f"   지역 코드: {region_code} ({'국내' if region_code == 1 else '수입'})")
+            print(f"   지역 보너스: +{region_bonus:.3f}")
+            print(f"   현재 총점: {score:.3f}")
         
         # 사이트별 신뢰도
         site_name = sales_data.get('site_name', '').lower()
+        site_bonus = 0
         if site_name in self.weights['site_preference']:
-            score += self.weights['site_preference'][site_name]
+            site_bonus = self.weights['site_preference'][site_name]
+            score += site_bonus
+        
+        if self.verbose:
+            print(f"\n10. 사이트 신뢰도:")
+            print(f"    사이트: {site_name}")
+            print(f"    사이트 보너스: +{site_bonus:.3f}")
+            print(f"    현재 총점: {score:.3f}")
         
         # 0-5 범위로 클리핑
-        return max(0.5, min(5.0, score))
+        final_score = max(0.5, min(5.0, score))
+        
+        if self.verbose:
+            print(f"\n{'='*60}")
+            print(f"블루레이 평점 계산 수식 요약")
+            print(f"{'='*60}")
+            print(f"📐 기본 수식: y = α + β×x + Σ(γi × feature_i)")
+            print(f"")
+            print(f"🔢 변수 설명:")
+            print(f"   y = 블루레이 평점 (구하고자 하는 값)")
+            print(f"   α = 상수 (intercept) = {self.intercept}")
+            print(f"   β = 기본 가중치 (base_rating) = {self.weights['base_rating']}")
+            print(f"   x = 원본 영화 평점 = {base_rating:.2f}")
+            print(f"   Σ(γi × feature_i) = 모든 특성 보너스의 합 = {score - base_score:.3f}")
+            print(f"")
+            print(f"🧮 단계별 계산:")
+            print(f"   1단계: α + β×x = {self.intercept} + {self.weights['base_rating']}×{base_rating:.2f} = {base_score:.3f}")
+            print(f"   2단계: 특성 보너스 합계 = {score - base_score:.3f}")
+            print(f"   3단계: 최종 합계 = {base_score:.3f} + {score - base_score:.3f} = {score:.3f}")
+            print(f"   4단계: 범위 조정 = {final_score:.2f} (0.5-5.0 범위)")
+            print(f"")
+            print(f"💡 해석:")
+            if score - base_score > 0:
+                print(f"   블루레이 특성으로 인해 기본 점수보다 {score - base_score:.3f}점 상승")
+            elif score - base_score < 0:
+                print(f"   블루레이 특성으로 인해 기본 점수보다 {abs(score - base_score):.3f}점 하락")
+            else:
+                print(f"   블루레이 특성의 영향이 없어 기본 점수와 동일")
+            print(f"{'='*60}")
+        
+        return final_score
     
     def search_and_rate_bluray(self, search_term: str, limit: int = 10) -> List[Dict]:
         """
@@ -810,7 +1114,8 @@ if __name__ == "__main__":
     # 양방향 변환기 데모
     print("=== 블루레이 ↔ 영화 평점 양방향 변환 시스템 ===")
     
-    converter = BlurayRatingConverter()
+    # verbose 모드로 상세 계산 과정 출력
+    converter = BlurayRatingConverter(verbose=True)
     
     try:
         # 1. 블루레이 리뷰 → 영화 평점 역변환 데모
@@ -822,8 +1127,7 @@ if __name__ == "__main__":
             print(f"영화: {review_result['title']}")
             print(f"블루레이 제목: {review_result['bluray_title']}")
             print(f"장르: {', '.join(review_result['genres']) if review_result['genres'] else 'Unknown'}")
-            print(f"원본 리뷰 평점: {review_result['original_review_rating']}")
-            print(f"정규화된 블루레이 평점: {review_result['normalized_review_rating']:.1f}")
+            print(f"리뷰 평점: {review_result['review_rating']:.1f}/5.0")
             print(f"변환된 영화 평점: {review_result['converted_movie_rating']:.1f}/5.0")
             print(f"리뷰 댓글: {review_result['review_comment'][:50] if review_result['review_comment'] else 'None'}...")
         else:
@@ -833,12 +1137,9 @@ if __name__ == "__main__":
         print("\n2. 단일 블루레이 평가 (Sales ID: 1)")
         converter.demo_single_rating(1)
         
-        # 3. 평점 정규화 데모
-        print("\n3. 리뷰 평점 정규화 데모")
-        test_ratings = [-1, 0, 1, 2.5, 4.5]
-        for rating in test_ratings:
-            normalized = converter.normalize_review_rating(rating)
-            print(f"  {rating:4.1f} → {normalized:.1f}")
+        # 3. 리뷰 평점 (5점 체계)
+        print("\n3. 리뷰 평점은 이미 5점 체계로 저장됩니다.")
+        print("정규화 과정이 제거되었습니다.")
         
         # 4. 역변환 수식 설명
         print("\n=== 역변환 수식 ===")
@@ -851,7 +1152,6 @@ if __name__ == "__main__":
         print("\n=== 사용법 ===")
         print("1. 리뷰 → 영화 평점: converter.convert_review_to_movie_rating(user_id, sales_id)")
         print("2. 배치 변환: converter.batch_convert_reviews_to_ratings(limit)")
-        print("3. 평점 정규화: converter.normalize_review_rating(rating)")
         print("4. 전체 변환 스크립트: python convert_reviews_to_movie_ratings.py")
         
     except Exception as e:

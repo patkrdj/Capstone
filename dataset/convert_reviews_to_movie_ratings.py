@@ -24,14 +24,17 @@ def convert_reviews_to_movie_ratings(
     
     print("=== 블루레이 리뷰 → 영화 평점 변환 시작 ===")
     
-    # 변환기 초기화
-    converter = BlurayRatingConverter()
+    # 변환기 초기화 (처음 몇 개의 변환 과정만 상세히 표시)
+    converter = BlurayRatingConverter(verbose=True)
     
-    # 역변환에 맞는 가중치 조정
+    # 역변환에 맞는 가중치 조정 (화질과 가격 정보 강화)
     reverse_weights = {
         'base_rating': 0.65,     # 기본 평점 가중치
         'year_factor': 0.003,    # 연도 요인
         'director_factor': 0.12, # 감독 요인
+        'quality_4k': 0.6,       # 4K 화질 가중치 (더욱 강화)
+        'quality_hd': 0.35,      # HD 화질 가중치 (더욱 강화)  
+        'price_factor': -0.000015, # 가격 패널티 (약간 강화)
     }
     converter.update_weights(reverse_weights)
     
@@ -65,16 +68,10 @@ def print_conversion_statistics(df: pd.DataFrame):
     print(f"\n=== 변환 통계 ===")
     print(f"총 변환된 평점 수: {len(df)}")
     
-    # 원본 리뷰 평점 분포 (-1, 0, 1)
-    print("\n원본 리뷰 평점 분포:")
-    original_dist = df['original_review_rating'].value_counts().sort_index()
-    for rating, count in original_dist.items():
-        print(f"  {rating:2.0f}: {count:,}개 ({count/len(df)*100:.1f}%)")
-    
-    # 정규화된 블루레이 평점 분포
-    print("\n정규화된 블루레이 평점 분포:")
-    normalized_dist = df['normalized_review_rating'].value_counts().sort_index()
-    for rating, count in normalized_dist.items():
+    # 리뷰 평점 분포 (5점 체계)
+    print("\n리뷰 평점 분포:")
+    review_dist = df['review_rating'].value_counts().sort_index()
+    for rating, count in review_dist.items():
         print(f"  {rating:.1f}: {count:,}개 ({count/len(df)*100:.1f}%)")
     
     # 변환된 영화 평점 통계
@@ -109,9 +106,10 @@ def print_sample_results(df: pd.DataFrame, n: int = 15):
     # 다양한 케이스 샘플링
     samples = []
     
-    # 각 원본 평점별로 5개씩 샘플링
-    for original_rating in [-1, 0, 1]:
-        subset = df[df['original_review_rating'] == original_rating].head(5)
+    # 각 리뷰 평점별로 5개씩 샘플링
+    unique_ratings = sorted(df['review_rating'].unique())
+    for rating in unique_ratings[:3]:  # 상위 3개 평점
+        subset = df[df['review_rating'] == rating].head(5)
         if not subset.empty:
             samples.append(subset)
     
@@ -120,26 +118,26 @@ def print_sample_results(df: pd.DataFrame, n: int = 15):
     else:
         sample_df = df.head(n)
     
-    print("사용자 | SalesID | 영화ID | 원본 | 정규화 | 영화평점 | 제목")
-    print("-" * 80)
+    print("사용자 | SalesID | 영화ID | 리뷰평점 | 영화평점 | 제목")
+    print("-" * 70)
     
     for _, row in sample_df.iterrows():
         title = row['title'][:20] + "..." if len(row['title']) > 20 else row['title']
         print(f"{row['user_id']:6d} | {row['sales_id']:7d} | {row['movie_id']:6d} | "
-              f"{row['original_review_rating']:4.0f} | {row['normalized_review_rating']:6.1f} | "
-              f"{row['converted_movie_rating']:8.1f} | {title}")
+              f"{row['review_rating']:8.1f} | {row['converted_movie_rating']:8.1f} | {title}")
 
 def analyze_conversion_patterns(df: pd.DataFrame):
     """변환 패턴 분석"""
     print(f"\n=== 변환 패턴 분석 ===")
     
-    # 원본 평점별 평균 변환 결과
-    print("원본 리뷰 평점별 평균 영화 평점:")
-    for original_rating in [-1, 0, 1]:
-        subset = df[df['original_review_rating'] == original_rating]
+    # 리뷰 평점별 평균 변환 결과
+    print("리뷰 평점별 평균 영화 평점:")
+    unique_ratings = sorted(df['review_rating'].unique())
+    for rating in unique_ratings:
+        subset = df[df['review_rating'] == rating]
         if len(subset) > 0:
             avg_movie_rating = subset['converted_movie_rating'].mean()
-            print(f"  {original_rating:2.0f} → {avg_movie_rating:.2f} (샘플 {len(subset):,}개)")
+            print(f"  {rating:.1f} → {avg_movie_rating:.2f} (샘플 {len(subset):,}개)")
     
     # 장르별 영향 분석
     print(f"\n장르별 평균 영화 평점 (상위 10개):")
