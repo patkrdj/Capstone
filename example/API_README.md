@@ -174,3 +174,61 @@ async function searchSalesByMovieTitle(query) {
 - 리스트 UI 노출 시에는 `blurayTitle`이 있으면 이를 우선적으로 제목으로 사용하세요. 이미지가 있으면 `imageLink`를 썸네일로 사용할 수 있습니다.
 
 
+## Recommendations
+
+### 개요
+- 추천은 DB 저장 없이 실시간으로 생성한 결과를 반환합니다.
+- 호출 흐름: 클라이언트 → `POST /api/recommendations/run` (Spring) → Spring이 파이썬 서비스(py-reco)의 `GET /run?userId&topN`을 호출 → JSON 결과를 그대로 반환.
+
+### 엔드포인트 (Spring)
+- POST `/api/recommendations/run`
+  - Header: `Authorization: Bearer <token>`
+  - Body: `{ userId: number, topN?: number }` (topN 기본값 20)
+  - 200: 아래 JSON 페이로드
+  - 401: 인증 실패
+  - 500: 내부 오류(파이썬 서비스 오류 포함)
+
+응답 스키마
+```ts
+type RecommendationRunResponse = {
+  userId: number;
+  results: Array<{
+    movieId: number | null;
+    movieTitle: string | null;
+    saleId: number | null;
+    similarityScore: number | null;
+    reason: string;                // 예: "4K, Blu-ray, 3D, 35,000원"
+  }>;
+};
+```
+
+### 파이썬 서비스(py-reco)
+- GET `/run?userId=<id>&topN=<n>`
+  - 내부에서 `recommender.py`의 JSON 출력 루틴을 재사용해 안정적인 JSON을 반환합니다.
+  - 직접 호출이 필요한 경우(로컬 테스트): `http://<py-reco-host>:8000/run?userId=612&topN=5`
+
+### 사용 예시 (프런트)
+```javascript
+async function runRecommendations(userId, token, topN = 5) {
+  return await apiFetch('/recommendations/run', {
+    method: 'POST',
+    token,
+    body: { userId, topN }
+  });
+}
+
+// 응답 처리 예시
+(async () => {
+  const token = localStorage.getItem('accessToken');
+  const userId = Number(localStorage.getItem('userId')) || 612;
+  const payload = await runRecommendations(userId, token, 5);
+  const list = payload.results || [];
+  // list[0]?.reason, list[0]?.saleId 등으로 UI 업데이트
+})();
+```
+
+### 주의사항
+- 인증 프록시(Nginx) 사용 시 `Authorization` 헤더 전달 설정 필요.
+- Docker 구성에서는 Spring이 `PY_RECO_BASE`를 통해 py-reco를 호출합니다(기본 `http://py-reco:8000`).
+
+
