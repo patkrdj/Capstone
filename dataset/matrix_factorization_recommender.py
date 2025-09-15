@@ -556,8 +556,8 @@ def get_user_recommendations(user_id, n_recommendations=10, random_seed=42, dive
     np.random.seed(random_seed)
     
     # 데이터 파일 경로
-    ratings_file = "/Users/ptj/Documents/Capstone/dataset/ml-latest-small/ratings.csv"
-    movies_file = "/Users/ptj/Documents/Capstone/dataset/ml-latest-small/movies.csv"
+    ratings_file = "./ml-latest-small/ratings.csv"
+    movies_file = "./ml-latest-small/movies.csv"
     
     # SVDRecommender 모델 생성
     if verbose:

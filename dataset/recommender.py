@@ -1,4 +1,5 @@
 from matrix_factorization_recommender import get_user_recommendations
+from content_based_filtering import SalesBasedFiltering
 import time
 
 def main():
@@ -38,12 +39,12 @@ def main():
         print("-" * 50)
         
         if recommendations:
-            print(f"\n📋 추천 결과 (상위 20개):")
+            print(f"\n📋 영화 추천 결과 (상위 20개):")
             print(f"{'순위':<4} {'영화 ID':<8} {'예상 평점':<8} {'개인화 점수':<10} {'평균 평점':<8} {'영화 제목':<35}")
             print("-" * 100)
             
             # 상위 20개만 출력 (너무 많으면 화면이 지저분함)
-            display_count = min(100, len(recommendations))
+            display_count = min(20, len(recommendations))
             for i, (movie_id, title, predicted_rating, personalized_score, avg_rating) in enumerate(recommendations[:display_count], 1):
                 # 제목이 너무 길면 줄임
                 display_title = title[:32] + "..." if len(title) > 35 else title
@@ -51,6 +52,36 @@ def main():
                 
             if len(recommendations) > 20:
                 print(f"\n... 총 {len(recommendations)}개 중 상위 20개만 표시됨")
+
+            # 🆕 Content-based Filtering 블루레이 추천 시스템 연동
+            print(f"\n🔄 Content-based Filtering으로 각 영화의 최적 블루레이를 찾는 중...")
+            bluray_start = time.time()
+            
+            try:
+                # Content-based filtering 시스템 초기화
+                from content_based_filtering import SalesBasedFiltering
+                
+                # SalesBasedFiltering 객체 생성 및 특성 행렬 구성 (데이터베이스에서 직접 로드)
+                sbf = SalesBasedFiltering()  # 데이터베이스 직접 연동
+                sbf.load_data()  # 데이터베이스 reviews 테이블에서 평점 데이터 로드
+                sbf.create_sales_feature_matrix(min_df=2, use_log_tf=True)  # Sales 메타데이터 TF-IDF 행렬 생성
+                
+                print(f"✅ Content-based filtering 시스템 초기화 완료")
+                
+                # Content-based filtering으로 추천받은 영화들의 최적 블루레이 찾기 (상위 20개만)
+                bluray_results = sbf.find_best_sales_for_movies(recommendations, user_id, top_n=20)
+                
+                # 결과 출력
+                sbf.display_movie_sales_recommendations(bluray_results, max_display=20)
+                
+                bluray_time = time.time() - bluray_start
+                print(f"\n⏱️  Content-based 블루레이 추천 시간: {bluray_time:.3f}초")
+                
+            except Exception as e:
+                print(f"Content-based 블루레이 추천 중 오류 발생: {e}")
+                print("영화 추천 결과만 표시됩니다.")
+                import traceback
+                traceback.print_exc()
                 
         else:
             print("추천할 영화가 없습니다.")

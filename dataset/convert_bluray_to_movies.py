@@ -4,6 +4,7 @@
 Sales 테이블의 모든 블루레이에 대해 평가를 계산하고 CSV로 저장합니다.
 """
 
+
 import sys
 import os
 import pandas as pd

@@ -4,12 +4,14 @@ from scipy.sparse import csr_matrix
 import warnings
 import os
 import pymysql
+from contextlib import contextmanager
 warnings.filterwarnings('ignore')
 
 
+@contextmanager
 def get_mysql_connection():
 	"""MySQL 연결 생성"""
-	return pymysql.connect(
+	conn = pymysql.connect(
 		host='13.58.174.167',
 		port=3306,
 		user='admin',
@@ -18,18 +20,20 @@ def get_mysql_connection():
 		charset='utf8mb4',
 		autocommit=True
 	)
+	try:
+		yield conn
+	finally:
+		conn.close()
 
 
 class SalesBasedFiltering:
-	def __init__(self, ratings_file, movies_file='ml-latest-small/movies.csv'):
+	def __init__(self, movies_file='ml-latest-small/movies.csv'):
 		"""
-		Sales 기반 콘텐츠 필터링 클래스 (sales 메타데이터 TF-IDF 기반)
+		Sales 기반 콘텐츠 필터링 클래스 (데이터베이스 직접 연동)
 
 		Args:
-			ratings_file: 평점 데이터 파일 경로
 			movies_file: 영화 정보 파일 경로
 		"""
-		self.ratings_file = ratings_file
 		self.movies_file = movies_file
 		self.ratings_df = None
 		self.movies_df = None
@@ -44,11 +48,17 @@ class SalesBasedFiltering:
 		self.item_feature_matrix = None  # csr_matrix (num_sales x num_features)
 
 	def load_data(self):
-		"""평점 데이터 및 영화 데이터 로드"""
-		print("평점 데이터를 로드하는 중...")
-		self.ratings_df = pd.read_csv(self.ratings_file)
-		print(f"평점 데이터: {self.ratings_df.shape[0]}개 평점")
-		print(f"사용자 수: {self.ratings_df['userId'].nunique()}명")
+		"""데이터베이스에서 평점 데이터 및 영화 데이터 로드"""
+		print("데이터베이스 reviews 테이블에서 평점 데이터를 로드하는 중...")
+		self.ratings_df = self._load_ratings_from_database()
+		
+		if self.ratings_df is not None and not self.ratings_df.empty:
+			print(f"평점 데이터: {self.ratings_df.shape[0]}개 평점")
+			print(f"사용자 수: {self.ratings_df['userId'].nunique()}명")
+			print(f"영화 수: {self.ratings_df['movieId'].nunique()}개")
+		else:
+			print("❌ 데이터베이스에서 평점 데이터를 로드할 수 없습니다.")
+			raise Exception("데이터베이스 연결을 확인하거나 reviews 테이블에 데이터가 있는지 확인해주세요.")
 		
 		print("영화 데이터를 로드하는 중...")
 		if os.path.exists(self.movies_file):
@@ -57,6 +67,41 @@ class SalesBasedFiltering:
 		else:
 			print(f"영화 데이터 파일을 찾을 수 없습니다: {self.movies_file}")
 			self.movies_df = None
+
+	def _load_ratings_from_database(self):
+		"""데이터베이스 reviews 테이블에서 평점 데이터 로드"""
+		try:
+			with get_mysql_connection() as conn:
+				query = """
+				SELECT 
+					r.user_id as userId,
+					s.movie_id as movieId,
+					r.rating as rating,
+					UNIX_TIMESTAMP(r.created_at) as timestamp
+				FROM reviews r
+				LEFT JOIN sales s ON r.sales_id = s.id
+				WHERE s.movie_id IS NOT NULL
+				ORDER BY r.user_id, r.sales_id
+				"""
+				
+				ratings_df = pd.read_sql(query, con=conn)
+				
+				if ratings_df.empty:
+					print("⚠️ Reviews 테이블에서 데이터를 찾을 수 없습니다.")
+					return None
+				
+				# 데이터 타입 확인 및 정리
+				ratings_df['userId'] = ratings_df['userId'].astype(int)
+				ratings_df['movieId'] = ratings_df['movieId'].astype(int)
+				ratings_df['rating'] = ratings_df['rating'].astype(float)
+				ratings_df['timestamp'] = ratings_df['timestamp'].fillna(0).astype(int)
+				
+				print(f"✅ Reviews 테이블에서 {len(ratings_df)}개 평점 로드 완료")
+				return ratings_df
+				
+		except Exception as e:
+			print(f"❌ 데이터베이스 평점 로드 오류: {e}")
+			return None
 
 	def _price_bucket(self, price):
 		"""가격을 만원 단위 버킷으로 변환"""
@@ -278,189 +323,261 @@ class SalesBasedFiltering:
 		return recommendations
 
 	def search_movie_by_title(self, title_query):
-		"""
-		영화 제목으로 영화 검색
-		
-		Args:
-			title_query: 검색할 영화 제목 (부분 검색 가능)
-			
-		Returns:
-			list: 매칭되는 영화들의 정보 (movieId, title, genres)
-		"""
-		if self.movies_df is None:
-			print("영화 데이터가 로드되지 않았습니다.")
-			return []
-		
-		# 대소문자 구분 없이 부분 검색
-		matches = self.movies_df[
-			self.movies_df['title'].str.contains(title_query, case=False, na=False)
-		].copy()
-		
-		if matches.empty:
-			print(f"'{title_query}'와 일치하는 영화를 찾을 수 없습니다.")
-			return []
-		
-		print(f"'{title_query}' 검색 결과: {len(matches)}개 영화")
-		return matches.to_dict('records')
+		raise NotImplementedError("영화 검색 기능은 제거되었습니다 (블루레이 추천만 지원).")
 
 	def get_movie_by_id(self, movie_id):
+		raise NotImplementedError("영화 조회 기능은 제거되었습니다 (블루레이 추천만 지원).")
+
+	def recommend_similar_movies(self, movie_title_or_id, n_recommendations=10, min_score=0.0):
+		raise NotImplementedError("영화 유사도 추천 기능은 제거되었습니다 (블루레이 추천만 지원).")
+
+	def evaluate_movie_recommendations(self, movie_title_or_id, n_recommendations=10):
+		raise NotImplementedError("영화 기반 추천 결과 출력 기능은 제거되었습니다 (블루레이 추천만 지원).")
+
+	def find_best_sales_for_movies(self, movie_recommendations, user_id, top_n=None):
 		"""
-		movie_id로 영화 정보 조회
+		Content-based filtering으로 추천받은 영화 리스트에 대해 각 영화의 최적 블루레이(sales) 찾기
+		사용자의 과거 구매/평가 패턴을 분석해서 메타데이터가 유사한 블루레이를 추천
+		
+		Args:
+			movie_recommendations: 영화 추천 리스트 [(movie_id, title, predicted_rating, personalized_score, avg_rating), ...]
+			user_id: 사용자 ID (content-based 프로필 생성용)
+			top_n: 상위 N개 블루레이만 반환 (None이면 모든 영화에서 블루레이 찾기)
+			
+		Returns:
+			list: 각 영화의 최적 sales 정보 (top_n이 지정되면 상위 N개만)
+		"""
+		total_movies = len(movie_recommendations)
+		result_count = top_n if top_n else total_movies
+		
+		print(f"\n=== Content-based Filtering으로 영화 {total_movies}개 → 상위 {result_count}개 블루레이 추천 ===")
+		print(f"사용자 ID: {user_id}")
+		
+		# 사용자 프로필 벡터 생성 (이미 평가한 sales 기반)
+		user_profile = self._build_user_profile_vector(user_id)
+		if user_profile is None:
+			raise RuntimeError(f"사용자 {user_id}의 프로필이 존재하지 않습니다. 유저 프로필을 먼저 생성하세요.")
+		
+		print(f"✅ 사용자 프로필 벡터 생성 완료 (차원: {len(user_profile)})")
+		
+		results = []
+		movies_with_sales = 0
+		
+		try:
+			for i, movie_rec in enumerate(movie_recommendations, 1):
+				movie_id = movie_rec[0]
+				movie_title = movie_rec[1]
+				# SVD 예측 평점은 사용하지 않음 (순수 콘텐츠 기반)
+				
+				# 해당 영화의 sales들을 content-based filtering으로 추천
+				best_sale_info = self._recommend_sale_for_movie(movie_id, user_profile)
+				
+				if best_sale_info is None:
+					# Sales가 없는 영화는 낮은 점수로 처리 (유사도만 사용)
+					results.append({
+						'movie_id': movie_id,
+						'movie_title': movie_title,
+						'best_sale': None,
+						'similarity_score': -1.0,
+						'reason': 'No bluray sales available'
+					})
+					continue
+				
+				movies_with_sales += 1
+				best_sale, similarity_score, reason = best_sale_info
+				
+				results.append({
+					'movie_id': movie_id,
+					'movie_title': movie_title,
+					'available_sales': best_sale.get('total_sales', 1) if best_sale else 0,
+					'best_sale': best_sale,
+					'similarity_score': similarity_score,
+					'reason': reason
+				})
+		
+		except Exception as e:
+			print(f"추천 과정 중 오류: {e}")
+			return []
+		
+		print(f"✅ Content-based 추천 완료: {movies_with_sales}/{len(movie_recommendations)}개 영화에서 블루레이 발견")
+		
+		# 상위 N개만 반환하는 경우
+		if top_n is not None:
+			print(f"🔝 유사도 기준으로 상위 {top_n}개 블루레이 선별 중...")
+			# 유사도 기준으로 정렬
+			results.sort(key=lambda x: x['similarity_score'], reverse=True)
+			results = results[:top_n]
+			
+			# 실제 블루레이가 있는 것들만 카운트
+			actual_bluray_count = len([r for r in results if r.get('best_sale') is not None])
+			print(f"✅ 상위 {top_n}개 선별 완료 (블루레이 있음: {actual_bluray_count}개)")
+		
+		return results
+
+	def _recommend_sale_for_movie(self, movie_id, user_profile):
+		"""
+		특정 영화의 sales 중에서 사용자 프로필과 가장 유사한 것을 content-based filtering으로 추천
 		
 		Args:
 			movie_id: 영화 ID
+			user_profile: 사용자 프로필 벡터
 			
 		Returns:
-			dict: 영화 정보 또는 None
+			tuple: (best_sale, similarity_score, reason) 또는 None
 		"""
-		if self.movies_df is None:
+		# 해당 영화의 sales 인덱스들 찾기
+		if movie_id not in self.sale_index_by_movie_id:
 			return None
-			
-		movie = self.movies_df[self.movies_df['movieId'] == movie_id]
-		if movie.empty:
+		
+		sale_indices = self.sale_index_by_movie_id[movie_id]
+		if not sale_indices:
 			return None
-			
-		return movie.iloc[0].to_dict()
+		
+		best_sale = None
+		best_score = -1
+		best_reason = ""
+		
+		try:
+			with get_mysql_connection() as conn:
+				for sale_idx in sale_indices:
+					sale_id = self.sale_index_to_id[sale_idx]
+					
+					# 해당 sales의 특성 벡터 추출
+					sale_features = self.item_feature_matrix[sale_idx].toarray().ravel()
+					
+					# 사용자 프로필과의 코사인 유사도 계산
+					similarity = np.dot(user_profile, sale_features)
+					
+					if similarity > best_score:
+						best_score = similarity
+						
+						# 해당 sale의 상세 정보 조회
+						query = """
+						SELECT s.id, s.price, s.quality, s.region_code, s.is_limited_edition, 
+							   s.site_name, s.bluray_title, s.site_url
+						FROM sales s
+						WHERE s.id = %s
+						"""
+						cursor = conn.cursor(pymysql.cursors.DictCursor)
+						cursor.execute(query, (sale_id,))
+						best_sale = cursor.fetchone()
+						cursor.close()
+						
+						if best_sale:
+							best_sale['total_sales'] = len(sale_indices)
+							best_reason = self._get_content_based_reason(best_sale, similarity)
+				
+				return (best_sale, best_score, best_reason) if best_sale else None
+				
+		except Exception as e:
+			print(f"Sales 추천 중 오류: {e}")
+			return None
 
-	def recommend_similar_movies(self, movie_title_or_id, n_recommendations=10, min_score=0.0):
+	def _default_sales_recommendation(self, movie_recommendations, top_n=None):
 		"""
-		특정 영화와 비슷한 영화들을 추천
+		사용자 프로필이 없을 때 사용하는 기본 추천 방식 (화질 우선, 가격 고려)
 		
 		Args:
-			movie_title_or_id: 영화 제목 또는 movie_id
-			n_recommendations: 추천할 영화 수
-			min_score: 최소 유사도 임계값
-			
-		Returns:
-			list: 추천 영화 목록
+			movie_recommendations: 영화 추천 리스트
+			top_n: 상위 N개 블루레이만 반환 (None이면 모든 영화)
 		"""
-		# movie_id 찾기
-		target_movie_id = None
-		target_movie = None
-		
-		if isinstance(movie_title_or_id, int):
-			# movie_id로 직접 조회
-			target_movie_id = movie_title_or_id
-			target_movie = self.get_movie_by_id(target_movie_id)
-			if target_movie is None:
-				print(f"Movie ID {target_movie_id}를 찾을 수 없습니다.")
-				return []
-		else:
-			# 영화 제목으로 검색
-			search_results = self.search_movie_by_title(movie_title_or_id)
-			if not search_results:
-				return []
-			
-			# 첫 번째 검색 결과 사용 (여러 개가 있으면 선택 메뉴 제공)
-			if len(search_results) > 1:
-				print("\n여러 영화가 검색되었습니다:")
-				for i, movie in enumerate(search_results[:5], 1):
-					print(f"{i}. {movie['title']} (ID: {movie['movieId']})")
-				
-				try:
-					choice = int(input("\n선택할 영화 번호를 입력하세요 (1-5): ")) - 1
-					if 0 <= choice < min(len(search_results), 5):
-						target_movie = search_results[choice]
-						target_movie_id = target_movie['movieId']
-					else:
-						print("잘못된 선택입니다. 첫 번째 영화를 선택합니다.")
-						target_movie = search_results[0]
-						target_movie_id = target_movie['movieId']
-				except ValueError:
-					print("잘못된 입력입니다. 첫 번째 영화를 선택합니다.")
-					target_movie = search_results[0]
-					target_movie_id = target_movie['movieId']
-			else:
-				target_movie = search_results[0]
-				target_movie_id = target_movie['movieId']
-		
-		print(f"\n기준 영화: {target_movie['title']} (ID: {target_movie_id})")
-		
-		# 해당 영화의 sales가 있는지 확인
-		if target_movie_id not in self.sale_index_by_movie_id:
-			print("해당 영화의 sales 데이터가 없어 비슷한 영화를 찾을 수 없습니다.")
-			return []
-		
-		# 해당 영화의 모든 sales 행의 특성 벡터 평균 계산
-		target_indices = self.sale_index_by_movie_id[target_movie_id]
-		target_features = self.item_feature_matrix[target_indices].mean(axis=0)
-		target_features = np.asarray(target_features).ravel()
-		
-		# L2 정규화
-		norm = np.linalg.norm(target_features)
-		if norm == 0.0:
-			print("해당 영화의 특성 정보가 없습니다.")
-			return []
-		target_features = target_features / norm
-		
-		# 모든 영화에 대한 유사도 계산
-		movie_scores = {}
-		for row_idx in range(self.item_feature_matrix.shape[0]):
-			mid = self.sale_index_to_movie_id[row_idx]
-			if mid == target_movie_id or mid is None:
-				continue
-				
-			# 코사인 유사도 계산
-			item_features = self.item_feature_matrix[row_idx].toarray().ravel()
-			score = np.dot(target_features, item_features)
-			
-			if score >= min_score:
-				if mid not in movie_scores or score > movie_scores[mid]:
-					movie_scores[mid] = score
-		
-		# 점수순으로 정렬
-		sorted_movies = sorted(movie_scores.items(), key=lambda x: x[1], reverse=True)
-		
-		# 상위 n개 선택
-		recommendations = []
-		for movie_id, score in sorted_movies[:n_recommendations]:
-			movie_info = self.get_movie_by_id(movie_id)
-			if movie_info:
-				recommendations.append({
-					'movieId': movie_id,
-					'title': movie_info['title'],
-					'genres': movie_info.get('genres', ''),
-					'similarity': round(score, 4)
-				})
-		
-		return recommendations
+		raise RuntimeError("기본 sales 추천 로직은 제거되었습니다. 사용자 프로필이 필요합니다.")
 
-	def evaluate_movie_recommendations(self, movie_title_or_id, n_recommendations=10):
-		"""영화 기반 추천 결과 요약 출력"""
-		recommendations = self.recommend_similar_movies(movie_title_or_id, n_recommendations=n_recommendations)
+	def _get_content_based_reason(self, sale, similarity_score):
+		"""Content-based filtering 선택 이유 생성"""
+		if not sale:
+			return "No sales available"
 		
-		if recommendations:
-			print(f"\n=== 비슷한 영화 추천 결과 ===")
-			print(f"추천 영화 수: {len(recommendations)}")
-			print("\n추천 영화 목록:")
-			for i, rec in enumerate(recommendations, 1):
-				print(f"{i:2d}. {rec['title']} (ID: {rec['movieId']})")
-				print(f"    장르: {rec['genres']}")
-				print(f"    유사도: {rec['similarity']}")
-				print()
+		reasons = []
+		
+		# 유사도 점수
+		reasons.append(f"유사도 {similarity_score:.3f}")
+		
+		# 화질
+		quality = sale.get('quality', '').upper()
+		if '4' in quality or 'U' in quality:
+			reasons.append("4K 화질")
+		elif 'H' in quality or 'B' in quality:
+			reasons.append("HD 화질")
 		else:
-			print("추천할 영화가 없습니다.")
+			reasons.append("SD 화질")
 		
-		return recommendations
+		# 가격
+		price = sale.get('price', 0)
+		if price > 0:
+			reasons.append(f"{price:,}원")
+		
+		# 리미티드 에디션
+		if sale.get('is_limited_edition'):
+			reasons.append("한정판")
+		
+		# 지역
+		if sale.get('region_code') == 1:
+			reasons.append("국내판")
+		else:
+			reasons.append("수입판")
+		
+		return ", ".join(reasons)
+
+	def display_movie_sales_recommendations(self, results, show_details=True, max_display=20):
+		"""Content-based filtering 추천 결과를 보기 좋게 출력"""
+		if not results:
+			print("추천 결과가 없습니다.")
+			return
+		
+		print(f"\n=== Content-based Filtering 블루레이 추천 결과 (순수 콘텐츠 기반) ===")
+		print(f"{'순위':<4} {'영화 제목':<35} {'유사도':<8} {'Sale ID':<8} {'가격':<10} {'화질':<8} {'선택 이유':<25}")
+		print("-" * 150)
+		
+		displayed = 0
+		for i, result in enumerate(results, 1):
+			if displayed >= max_display:
+				print(f"\n... 총 {len(results)}개 중 상위 {max_display}개만 표시됨")
+				break
+			
+			movie_title = result['movie_title'][:32] + "..." if len(result['movie_title']) > 35 else result['movie_title']
+			similarity_score = result.get('similarity_score', 0.0)
+			
+			best_sale = result.get('best_sale')
+			if best_sale:
+				sale_id = best_sale.get('id', 'N/A')
+				price = f"{best_sale.get('price', 0):,}원" if best_sale.get('price') else "N/A"
+				quality = best_sale.get('quality', 'N/A')
+				reason = result.get('reason', '')[:25]
+				
+				print(f"{i:<4} {movie_title:<35} {similarity_score:<8.3f} {sale_id:<8} {price:<10} {quality:<8} {reason:<25}")
+				displayed += 1
+			else:
+				print(f"{i:<4} {movie_title:<35} {similarity_score:<8.3f} {'N/A':<8} {'N/A':<10} {'N/A':<8} {'블루레이 없음':<25}")
+		
+		# 통계 정보
+		sales_available = len([r for r in results if r.get('best_sale')])
+		print(f"\n📊 Content-based 추천 통계 (순수 콘텐츠 기반):")
+		print(f"   블루레이 판매 중인 영화: {sales_available}/{len(results)}개")
+		if sales_available > 0:
+			avg_price = np.mean([r['best_sale']['price'] for r in results if r.get('best_sale') and r['best_sale'].get('price')])
+			avg_similarity = np.mean([r['similarity_score'] for r in results if r.get('best_sale')])
+			print(f"   평균 추천 가격: {avg_price:,.0f}원")
+			print(f"   평균 유사도 점수: {avg_similarity:.3f}")
+		
+		return results
 
 
 
 
 def main():
-	"""메인 실행 함수"""
-	# 미리 생성된 sales 기반 평점 CSV 파일 사용
-	ratings_file = 'sales_ratings.csv'
+	"""메인 실행 함수 (데이터베이스 직접 연동)"""
+	print("=== Content-based Filtering 시스템 (Database 직접 연동) ===")
+	print("📊 데이터베이스 reviews 테이블에서 평점 데이터를 직접 로드합니다.")
 	
-	# 파일이 없으면 생성하라는 메시지 출력
-	if not os.path.exists(ratings_file):
-		print(f"평점 파일이 없습니다: {ratings_file}")
-		print("먼저 generate_sales_ratings.py를 실행하여 평점 데이터를 생성하세요.")
-		return
-
 	# 파이프라인 구동
-	sbf = SalesBasedFiltering(ratings_file)
-	sbf.load_data()
-	sbf.create_sales_feature_matrix(min_df=2, use_log_tf=True)
+	try:
+		sbf = SalesBasedFiltering()
+		sbf.load_data()  # 데이터베이스에서 reviews 테이블 로드
+		sbf.create_sales_feature_matrix(min_df=2, use_log_tf=True)
+	except Exception as e:
+		print(f"❌ 시스템 초기화 실패: {e}")
+		return
 
 	print("\n" + "="*80)
 	print("영화 추천 시스템")
@@ -504,18 +621,17 @@ def main():
 			print(f"오류가 발생했습니다: {e}")
 
 def demo_movie_recommendations():
-	"""영화 추천 데모 함수"""
-	ratings_file = 'sales_ratings.csv'
-	
-	if not os.path.exists(ratings_file):
-		print(f"평점 파일이 없습니다: {ratings_file}")
-		print("먼저 generate_sales_ratings.py를 실행하여 평점 데이터를 생성하세요.")
-		return
+	"""영화 추천 데모 함수 (데이터베이스 직접 연동)"""
+	print("=== 영화 추천 데모 (Database 직접 연동) ===")
 
 	# 시스템 초기화
-	sbf = SalesBasedFiltering(ratings_file)
-	sbf.load_data()
-	sbf.create_sales_feature_matrix(min_df=2, use_log_tf=True)
+	try:
+		sbf = SalesBasedFiltering()
+		sbf.load_data()  # 데이터베이스에서 reviews 테이블 로드
+		sbf.create_sales_feature_matrix(min_df=2, use_log_tf=True)
+	except Exception as e:
+		print(f"❌ 시스템 초기화 실패: {e}")
+		return
 
 	# 테스트 영화들
 	test_movies = [
