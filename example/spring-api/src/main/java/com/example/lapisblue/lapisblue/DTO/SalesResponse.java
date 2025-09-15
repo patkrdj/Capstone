@@ -9,7 +9,7 @@ public record SalesResponse(
         String siteUrl,
         Integer price,
         String quality,
-        Integer regionCode,
+        String regionCode,
         Boolean isLimitedEdition,
         String imageLink,
         String blurayTitle
@@ -24,7 +24,7 @@ public record SalesResponse(
                 s.getSiteUrl(),
                 s.getPrice(),
                 s.getQuality(),
-                s.getRegionCode(),
+                s.getRegionCode() != null ? s.getRegionCode().toString() : null, //Maybe ok to delete...
                 s.getIsLimitedEdition(),
                 s.getImageLink(),
                 s.getBlurayTitle()

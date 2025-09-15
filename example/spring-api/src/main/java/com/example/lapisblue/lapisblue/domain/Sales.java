@@ -29,8 +29,8 @@ public class Sales {
     @Column(name = "quality", length = 1)
     private String quality; // single char
 
-    @Column(name = "region_code")
-    private Integer regionCode;
+    @Column(name = "region_code", length = 1)
+    private Character regionCode;
 
     @Column(name = "is_limited_edition")
     private Boolean isLimitedEdition;
