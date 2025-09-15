@@ -13,7 +13,10 @@ COPY dataset /app/dataset
 # 파이썬 의존성
 RUN pip install --no-cache-dir \
     fastapi uvicorn[standard] \
-    pandas numpy scipy pymysql
+    pandas numpy scipy pymysql scikit-learn
+
+# ml-latest-small 폴더를 작업 디렉토리에 심볼릭 링크 생성
+RUN ln -s /app/dataset/ml-latest-small /app/ml-latest-small
 
 EXPOSE 8000
 

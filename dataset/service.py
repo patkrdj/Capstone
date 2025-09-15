@@ -28,14 +28,23 @@ def run(userId: int = Query(..., alias="userId"), topN: int = Query(20, alias="t
         sbf.create_sales_feature_matrix(min_df=2, use_log_tf=True)
         bluray_results = sbf.find_best_sales_for_movies(recommendations, user_id=userId, top_n=topN)
 
+        # numpy 타입을 Python 기본 타입으로 변환하는 헬퍼 함수
+        def convert_numpy_types(obj):
+            import numpy as np
+            if isinstance(obj, (np.integer, np.floating)):
+                return obj.item()
+            elif isinstance(obj, np.ndarray):
+                return obj.tolist()
+            return obj
+
         payload = {
             "userId": userId,
             "results": [
                 {
-                    "movieId": r.get("movie_id"),
+                    "movieId": convert_numpy_types(r.get("movie_id")),
                     "movieTitle": r.get("movie_title"),
-                    "saleId": (r.get("best_sale") or {}).get("id") if r.get("best_sale") else None,
-                    "similarityScore": r.get("similarity_score", 0.0),
+                    "saleId": convert_numpy_types((r.get("best_sale") or {}).get("id")) if r.get("best_sale") else None,
+                    "similarityScore": convert_numpy_types(r.get("similarity_score", 0.0)),
                     "reason": r.get("reason", "")
                 }
                 for r in (bluray_results or [])
