@@ -75,9 +75,16 @@
         <div style="margin-bottom:8px;">리뷰 작성</div>
         <div class="row" style="gap:8px; align-items:center;">
           <select id="ratingSelect" class="button">
-            <option value="1">좋아요 (+1)</option>
-            <option value="0" selected>보통 (0)</option>
-            <option value="-1">별로예요 (-1)</option>
+            <option value="5.0">★★★★★ 5.0</option>
+            <option value="4.5">★★★★☆ 4.5</option>
+            <option value="4.0" selected>★★★★☆ 4.0</option>
+            <option value="3.5">★★★☆☆ 3.5</option>
+            <option value="3.0">★★★☆☆ 3.0</option>
+            <option value="2.5">★★☆☆☆ 2.5</option>
+            <option value="2.0">★★☆☆☆ 2.0</option>
+            <option value="1.5">★☆☆☆☆ 1.5</option>
+            <option value="1.0">★☆☆☆☆ 1.0</option>
+            <option value="0.5">☆ 0.5</option>
           </select>
           <input id="commentInput" class="search-input" type="text" placeholder="한 줄 리뷰" style="flex:1;" />
           <button id="submitReview" class="button">등록</button>
@@ -262,7 +269,8 @@
         list.forEach(r => {
           const li = document.createElement('li');
           const ts = r.createdAt ? new Date(r.createdAt).toLocaleString('ko-KR') : '';
-          const ratingText = (r.rating === 1 ? '좋아요' : (r.rating === 0 ? '보통' : '별로'));
+          const ratingVal = (typeof r.rating === 'number') ? r.rating : parseFloat(r.rating);
+          const ratingText = isNaN(ratingVal) ? '-' : `${ratingVal.toFixed(1)}점`;
           const userLabel = r.username ? `[${r.username}] ` : (r.userId != null ? `[user:${r.userId}] ` : '');
           li.textContent = `${userLabel}${ratingText}${r.reviewComment ? ' - ' + r.reviewComment : ''}${ts ? ' (' + ts + ')' : ''}`;
           ul.appendChild(li);
@@ -298,7 +306,7 @@
         btn.addEventListener('click', async function() {
           try {
             const salesId = parseInt(ctx.saleId, 10);
-            const rating = parseInt(ratingSel.value, 10);
+            const rating = parseFloat(ratingSel.value);
             const reviewComment = commentInput.value || null;
             const token = localStorage.getItem('accessToken');
             if (!token) {

@@ -22,7 +22,8 @@ public class ReviewService {
         if (req == null || req.salesId() == null || req.rating() == null) {
             throw new IllegalArgumentException("Invalid review request");
         }
-        if (!(req.rating() == -1 || req.rating() == 0 || req.rating() == 1)) {
+        // rating 범위 검증 (예: 0.0 ~ 5.0). 필요에 따라 조정하세요.
+        if (req.rating() < 0.0f || req.rating() > 5.0f) {
             throw new IllegalArgumentException("Invalid rating value");
         }
 
