@@ -218,7 +218,8 @@ class SalesBasedFiltering:
 		inv = 1.0 / row_norms
 		matrix = matrix.multiply(inv.reshape(-1, 1))
 
-		self.item_feature_matrix = matrix
+		# multiply 연산 이후 희소 형식이 coo로 바뀔 수 있으므로 CSR로 강제 변환
+		self.item_feature_matrix = matrix.tocsr()
 		print(f"특성 행렬 크기: {self.item_feature_matrix.shape} (sales x 토큰)")
 
 	def _build_user_profile_vector(self, user_id):
@@ -493,14 +494,26 @@ class SalesBasedFiltering:
 		# 유사도 점수
 		reasons.append(f"유사도 {similarity_score:.3f}")
 		
-		# 화질
+		# 화질/형식 코드 해석
 		quality = sale.get('quality', '').upper()
-		if '4' in quality or 'U' in quality:
-			reasons.append("4K 화질")
-		elif 'H' in quality or 'B' in quality:
-			reasons.append("HD 화질")
-		else:
-			reasons.append("SD 화질")
+		matched_flag = False
+		if '4' in quality:
+			reasons.append("4K")
+			matched_flag = True
+		if '3' in quality:
+			reasons.append("3D")
+			matched_flag = True
+		if 'H' in quality:
+			reasons.append("HD")
+			matched_flag = True
+		if 'B' in quality:
+			reasons.append("Blu-ray")
+			matched_flag = True
+		if 'U' in quality:
+			reasons.append("미확정")
+			matched_flag = True
+		if not matched_flag:
+			reasons.append("화질 정보 없음")
 		
 		# 가격
 		price = sale.get('price', 0)
