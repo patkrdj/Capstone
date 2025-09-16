@@ -232,3 +232,73 @@ async function runRecommendations(userId, token, topN = 5) {
 - Docker 구성에서는 Spring이 `PY_RECO_BASE`를 통해 py-reco를 호출합니다(기본 `http://py-reco:8000`).
 
 
+## Reviews
+
+### 개요
+- 사용자가 블루레이 판매 아이템(sales)에 대해 평점과 코멘트를 남깁니다.
+- 평점은 0.5 ~ 5.0 범위, 0.5 간격의 실수입니다.
+
+### 엔드포인트
+- POST `/api/reviews`
+  - Header: `Authorization: Bearer <token>` (필수)
+  - Body(JSON):
+    ```json
+    {
+      "salesId": 123,
+      "rating": 4.5,
+      "reviewComment": "아트웍 좋고 화질 만족"
+    }
+    ```
+    - `userId`는 토큰에서 추출되어 서버에서 자동 매핑됩니다.
+  - 응답: 200 OK (empty body)
+  - 오류: 401(인증 실패), 400(잘못된 입력), 500(서버 오류)
+
+- GET `/api/reviews?salesId=<id>`
+  - 특정 판매 아이템에 대한 리뷰 목록
+  - 응답 타입: `ReviewResponse[]`
+
+- GET `/api/reviews?userId=<id>`
+  - 특정 사용자의 리뷰 목록
+  - 응답 타입: `ReviewResponse[]`
+
+### 응답 타입 (ReviewResponse)
+```ts
+type ReviewResponse = {
+  userId: number | null;
+  username: string | null;    // salesId로 조회 시 username 매핑됨
+  salesId: number | null;
+  rating: number | null;      // 0.5 ~ 5.0
+  reviewComment: string | null;
+  createdAt: string | null;   // ISO-8601
+};
+```
+
+### 사용 예시
+```javascript
+// 등록
+async function submitReview({ token, salesId, rating, reviewComment }) {
+  return await apiFetch('/reviews', {
+    method: 'POST',
+    token,
+    body: { salesId, rating, reviewComment }
+  });
+}
+
+// 판매 아이템 리뷰 조회
+async function listReviewsBySalesId(salesId) {
+  return await apiFetch(`/reviews?salesId=${encodeURIComponent(salesId)}`);
+}
+
+// 사용자 리뷰 조회
+async function listReviewsByUserId(userId) {
+  return await apiFetch(`/reviews?userId=${encodeURIComponent(userId)}`);
+}
+```
+
+### 검증/제약
+- POST `/api/reviews`:
+  - `salesId`와 `rating`은 필수
+  - `rating` 범위: 0.0 ≤ rating ≤ 5.0 (권장: 0.5 간격)
+  - 동일 `(userId, salesId)`에 대해 재호출 시 업데이트 동작(upsert)
+
+
