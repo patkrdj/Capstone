@@ -39,6 +39,7 @@
         <div class="avatar"></div>
         <div>
           <h1 id="display-name">사용자 이름</h1>
+          <div id="display-userid" style="color:#888; font-size:14px; margin-top:4px;"></div>
           <div id="display-email" style="color:#666;"></div>
           <div style="margin-top:8px;">
             <button class="button">프로필 수정</button>
@@ -88,8 +89,10 @@
         }
         const data = await res.json();
         const nameEl = document.getElementById('display-name');
+        const useridEl = document.getElementById('display-userid');
         const emailEl = document.getElementById('display-email');
         nameEl.textContent = data.username || data.usernameOrEmail || '사용자';
+        useridEl.textContent = data.userId ? `User ID: ${data.userId}` : '';
         emailEl.textContent = data.email || '';
       } catch (e) {
         window.location.href = '/static/login.html';

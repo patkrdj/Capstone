@@ -60,7 +60,7 @@ async function signup({ username, email, password }) {
 ### 3) Me
 - GET `/api/me`
 - Header: `Authorization: Bearer <token>`
-- 200: `{ usernameOrEmail, username, email, role }`
+- 200: `{ userId, usernameOrEmail, username, email, role }`
 - 401: "Missing Authorization header" | "Invalid token" | "User not found"
 
 ```javascript
