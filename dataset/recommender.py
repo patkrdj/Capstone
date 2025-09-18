@@ -94,34 +94,7 @@ def main(user_id=612, top_n=20, json_output=False):
                         print(">>>JSON_END>>>")
                     except Exception as je:
                         print(f"JSON 출력 오류: {je}")
-                else:
-                    # Spring API로 결과 전송
-                    try:
-                        import os, requests
-                        spring_base = os.getenv('SPRING_BASE', 'http://localhost:8080')
-                        token = os.getenv('ACCESS_TOKEN')
-                        payload = {
-                            'userId': user_id,
-                            'results': [
-                                {
-                                    'movieId': r.get('movie_id'),
-                                    'movieTitle': r.get('movie_title'),
-                                    'saleId': (r.get('best_sale') or {}).get('id') if r.get('best_sale') else None,
-                                    'similarityScore': r.get('similarity_score', 0.0),
-                                    'reason': r.get('reason', '')
-                                } for r in (bluray_results or [])
-                            ]
-                        }
-                        headers = {'Content-Type': 'application/json'}
-                        if token:
-                            headers['Authorization'] = f'Bearer {token}'
-                        resp = requests.post(f"{spring_base}/api/recommendations/import", json=payload, headers=headers, timeout=10)
-                        if resp.status_code != 200:
-                            print(f"🔁 전송 실패: {resp.status_code} {resp.text[:200]}")
-                        else:
-                            print("✅ 추천 결과를 Spring API로 전송 완료")
-                    except Exception as e2:
-                        print(f"Spring API 전송 오류: {e2}")
+                # Spring POST 전송은 제거됨 (service.py의 API를 통해 Pull 방식 사용 권장)
                 
                 bluray_time = time.time() - bluray_start
                 print(f"\n⏱️  Content-based 블루레이 추천 시간: {bluray_time:.3f}초")

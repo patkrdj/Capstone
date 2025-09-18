@@ -46,6 +46,7 @@ class SalesBasedFiltering:
 		self.index_to_token = None
 		self.idf_vector = None
 		self.item_feature_matrix = None  # csr_matrix (num_sales x num_features)
+		self.sales_meta_by_id = None  # dict[int saleId -> dict row]
 
 	def load_data(self):
 		"""데이터베이스에서 평점 데이터 및 영화 데이터 로드"""
@@ -118,18 +119,20 @@ class SalesBasedFiltering:
 		band = p // 10000
 		return f'price:{band}만대'
 
-	def create_sales_feature_matrix(self, min_df=2, use_log_tf=True):
+	def create_sales_feature_matrix(self, min_df=2, use_log_tf=True, engine='sklearn'):
 		"""
 		Sales 메타데이터 기반 TF-IDF 특성 행렬 생성 (quality/price/region/site/limited)
 
 		Args:
 			min_df: 토큰 최소 문서 빈도
 			use_log_tf: 로그 TF 사용 여부
+			engine: 'sklearn' 또는 'internal' (기본 'sklearn')
 		"""
 		print("MySQL에서 sales 메타데이터를 로드하는 중...")
 
 		query = (
-			"SELECT id, movie_id, site_name, price, quality, region_code, is_limited_edition "
+			"SELECT id, movie_id, site_name, price, quality, region_code, is_limited_edition, "
+			"bluray_title, site_url "
 			"FROM sales"
 		)
 		with get_mysql_connection() as conn:
@@ -151,32 +154,85 @@ class SalesBasedFiltering:
 				self.sale_index_by_movie_id.setdefault(mid, []).append(idx)
 		
 
-		# 토큰 수집
+		# 공통: 토큰 텍스트 생성 함수
+		def _row_to_token_text(row):
+			tokens = []
+			q = row.get('quality')
+			if pd.notna(q) and str(q).strip():
+				tokens.append(f"quality:{str(q).strip()}")
+			r = row.get('region_code')
+			if pd.notna(r) and str(r).strip():
+				tokens.append(f"region:{str(r).strip()}")
+			site = row.get('site_name')
+			if pd.notna(site) and str(site).strip():
+				tokens.append(f"site:{str(site).strip().lower()}")
+			limited = row.get('is_limited_edition')
+			if pd.notna(limited):
+				tokens.append(f"limited:{'yes' if bool(limited) else 'no'}")
+			bucket = self._price_bucket(row.get('price'))
+			if bucket:
+				tokens.append(bucket)
+			return " ".join(tokens)
+
+		if engine == 'sklearn':
+			try:
+				from sklearn.feature_extraction.text import TfidfVectorizer
+			except Exception as e:
+				print(f"scikit-learn 사용 실패({e}), internal 엔진으로 대체합니다.")
+				engine = 'internal'
+		
+		if engine == 'sklearn':
+			texts = [
+				_row_to_token_text(row)
+				for _, row in df.iterrows()
+			]
+			vectorizer = TfidfVectorizer(
+				lowercase=False,
+				preprocessor=lambda s: s,
+				tokenizer=str.split,
+				token_pattern=None,
+				min_df=min_df,
+				sublinear_tf=bool(use_log_tf),
+				norm='l2',
+				dtype=np.float32,
+			)
+			matrix = vectorizer.fit_transform(texts)
+			self.item_feature_matrix = matrix.tocsr()
+			# 호환성을 위해 보조 메타데이터도 유지
+			self.token_to_index = dict(vectorizer.vocabulary_)
+			self.index_to_token = {idx: tok for tok, idx in self.token_to_index.items()}
+			# idf_는 feature 순서 기준
+			try:
+				idf = np.asarray(vectorizer.idf_, dtype=np.float32)
+				self.idf_vector = idf
+			except Exception:
+				self.idf_vector = None
+			# 판매 메타데이터를 id 기반으로 인메모리 인덱싱
+			self.sales_meta_by_id = {int(r['id']): dict(r) for _, r in df.iterrows()}
+			print(f"특성 행렬 크기: {self.item_feature_matrix.shape} (sales x 토큰, engine=sklearn)")
+			return
+
+		# 내부 엔진 경로 (기존 로직 유지)
 		item_tokens_list = []
 		df_counter = {}
 		for _, row in df.iterrows():
 			tokens = {}
-			# quality
 			q = row.get('quality')
 			if pd.notna(q) and str(q).strip():
 				key = f"quality:{str(q).strip()}"
 				tokens[key] = tokens.get(key, 0) + 1
-			# region
 			r = row.get('region_code')
 			if pd.notna(r) and str(r).strip():
 				key = f"region:{str(r).strip()}"
 				tokens[key] = tokens.get(key, 0) + 1
-			# site
 			site = row.get('site_name')
 			if pd.notna(site) and str(site).strip():
 				key = f"site:{str(site).strip().lower()}"
 				tokens[key] = tokens.get(key, 0) + 1
-			# limited
 			limited = row.get('is_limited_edition')
 			if pd.notna(limited):
 				key = f"limited:{'yes' if bool(limited) else 'no'}"
 				tokens[key] = tokens.get(key, 0) + 1
-			# price bucket (만원 단위)
 			bucket = self._price_bucket(row.get('price'))
 			if bucket:
 				tokens[bucket] = tokens.get(bucket, 0) + 1
@@ -185,7 +241,6 @@ class SalesBasedFiltering:
 			for tok in tokens.keys():
 				df_counter[tok] = df_counter.get(tok, 0) + 1
 
-		# 어휘집/IDF
 		num_items = len(sale_ids)
 		valid_tokens = [tok for tok, dfv in df_counter.items() if dfv >= min_df]
 		valid_tokens.sort()
@@ -198,7 +253,6 @@ class SalesBasedFiltering:
 			idf[idx] = np.log((1.0 + num_items) / (1.0 + df_v)) + 1.0
 		self.idf_vector = idf
 
-		# CSR 구성
 		rows, cols, data = [], [], []
 		for row_idx, token_counts in enumerate(item_tokens_list):
 			for tok, tf in token_counts.items():
@@ -218,9 +272,10 @@ class SalesBasedFiltering:
 		inv = 1.0 / row_norms
 		matrix = matrix.multiply(inv.reshape(-1, 1))
 
-		# multiply 연산 이후 희소 형식이 coo로 바뀔 수 있으므로 CSR로 강제 변환
 		self.item_feature_matrix = matrix.tocsr()
-		print(f"특성 행렬 크기: {self.item_feature_matrix.shape} (sales x 토큰)")
+		# 판매 메타데이터를 id 기반으로 인메모리 인덱싱
+		self.sales_meta_by_id = {int(r['id']): dict(r) for _, r in df.iterrows()}
+		print(f"특성 행렬 크기: {self.item_feature_matrix.shape} (sales x 토큰, engine=internal)")
 
 	def _build_user_profile_vector(self, user_id):
 		"""사용자 프로필 벡터 생성 (평점 가중 합)"""
@@ -365,6 +420,8 @@ class SalesBasedFiltering:
 		movies_with_sales = 0
 		
 		try:
+			# 유사도 계산을 위해 사용자 프로필을 컬럼 벡터로 준비
+			user_profile_vec = user_profile.reshape(-1, 1)
 			for i, movie_rec in enumerate(movie_recommendations, 1):
 				movie_id = movie_rec[0]
 				movie_title = movie_rec[1]
@@ -435,44 +492,29 @@ class SalesBasedFiltering:
 			return None
 		
 		best_sale = None
-		best_score = -1
+		best_score = -1.0
 		best_reason = ""
-		
-		try:
-			with get_mysql_connection() as conn:
-				for sale_idx in sale_indices:
-					sale_id = self.sale_index_to_id[sale_idx]
-					
-					# 해당 sales의 특성 벡터 추출
-					sale_features = self.item_feature_matrix[sale_idx].toarray().ravel()
-					
-					# 사용자 프로필과의 코사인 유사도 계산
-					similarity = np.dot(user_profile, sale_features)
-					
-					if similarity > best_score:
-						best_score = similarity
-						
-						# 해당 sale의 상세 정보 조회
-						query = """
-						SELECT s.id, s.price, s.quality, s.region_code, s.is_limited_edition, 
-							   s.site_name, s.bluray_title, s.site_url
-						FROM sales s
-						WHERE s.id = %s
-						"""
-						cursor = conn.cursor(pymysql.cursors.DictCursor)
-						cursor.execute(query, (sale_id,))
-						best_sale = cursor.fetchone()
-						cursor.close()
-						
-						if best_sale:
-							best_sale['total_sales'] = len(sale_indices)
-							best_reason = self._get_content_based_reason(best_sale, similarity)
-				
-				return (best_sale, best_score, best_reason) if best_sale else None
-				
-		except Exception as e:
-			print(f"Sales 추천 중 오류: {e}")
+
+		# 전체 후보에 대한 점수 한 번에 계산 (희소행렬 내적)
+		sub_matrix = self.item_feature_matrix[sale_indices]
+		scores = (sub_matrix @ user_profile.reshape(-1, 1))
+		scores = np.asarray(scores).ravel()
+		if scores.size == 0:
 			return None
+
+		best_local_idx = int(np.argmax(scores))
+		best_score = float(scores[best_local_idx])
+		best_row_idx = sale_indices[best_local_idx]
+		best_sale_id = self.sale_index_to_id[best_row_idx]
+
+		# 메타데이터는 인메모리 맵에서 조회
+		meta = (self.sales_meta_by_id or {}).get(int(best_sale_id))
+		if meta is None:
+			return None
+		best_sale = dict(meta)
+		best_sale['total_sales'] = len(sale_indices)
+		best_reason = self._get_content_based_reason(best_sale, best_score)
+		return (best_sale, best_score, best_reason)
 
 	def _default_sales_recommendation(self, movie_recommendations, top_n=None):
 		"""
