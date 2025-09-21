@@ -555,9 +555,11 @@ def get_user_recommendations(user_id, n_recommendations=10, random_seed=42, dive
     # 랜덤 시드 설정
     np.random.seed(random_seed)
     
-    # 데이터 파일 경로
-    ratings_file = "./ml-latest-small/ratings.csv"
-    movies_file = "./ml-latest-small/movies.csv"
+    # 데이터 파일 경로 (절대경로화: Windows/작업 디렉토리 차이 대응)
+    import os
+    base_dir = os.path.dirname(os.path.abspath(__file__))
+    ratings_file = os.path.join(base_dir, "ml-latest-small", "ratings.csv")
+    movies_file = os.path.join(base_dir, "ml-latest-small", "movies.csv")
     
     # SVDRecommender 모델 생성
     if verbose:

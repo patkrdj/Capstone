@@ -9,6 +9,7 @@ import pandas as pd
 
 from user_based_collaborative_filtering import UserBasedCollaborativeFiltering
 from matrix_factorization_recommender import SVDRecommender
+from matrix_factorization import SimpleMatrixFactorization
 from content_based_filtering_for_movies import recommend_for_user as cb_recommend_for_user
 
 
@@ -92,6 +93,13 @@ def run_training_with_holdout(
         model.fit_model()
         recs = model.recommend_movies(user_id=user_id, n_recommendations=top_k, diversity_factor=0.3)
         recs_movie_ids = [int(r['movieId']) for r in recs]
+    elif algo == 'simple_mf':
+        model = SimpleMatrixFactorization(n_components=50)
+        model.load_data(ratings_file=tmp_ratings_path, movies_file=MOVIES_CSV_PATH)
+        model.prepare_matrix()
+        model.fit()
+        recs = model.recommend_movies(user_id=user_id, n_recommendations=top_k)
+        recs_movie_ids = [int(r[0]) for r in recs]  # SimpleMatrixFactorization returns tuples (movie_id, title, rating)
     elif algo == 'usercf':
         cf = UserBasedCollaborativeFiltering(ratings_file=tmp_ratings_path, movies_file=MOVIES_CSV_PATH)
         cf.load_data()
@@ -110,7 +118,7 @@ def run_training_with_holdout(
         )
         recs_movie_ids = [int(mid) for mid in df['movieId'].tolist()]
     else:
-        raise ValueError("Unsupported algo. Use one of: mf, usercf, cb")
+        raise ValueError("Unsupported algo. Use one of: mf, simple_mf, usercf, cb")
 
     # Cleanup temp file
     try:
@@ -161,7 +169,7 @@ def compare_algorithms(
     pos_set = set(heldout_positive)
 
     rows = []
-    for algo in ["mf", "usercf", "cb"]:
+    for algo in ["mf", "simple_mf", "usercf", "cb"]:
         start = time.perf_counter()
         recs_movie_ids: List[int] = []
         if algo == 'mf':
@@ -172,6 +180,13 @@ def compare_algorithms(
             model.fit_model()
             recs = model.recommend_movies(user_id=user_id, n_recommendations=top_k, diversity_factor=0.3)
             recs_movie_ids = [int(r['movieId']) for r in recs]
+        elif algo == 'simple_mf':
+            model = SimpleMatrixFactorization(n_components=50)
+            model.load_data(ratings_file=tmp_ratings_path, movies_file=MOVIES_CSV_PATH)
+            model.prepare_matrix()
+            model.fit()
+            recs = model.recommend_movies(user_id=user_id, n_recommendations=top_k)
+            recs_movie_ids = [int(r[0]) for r in recs]  # SimpleMatrixFactorization returns tuples (movie_id, title, rating)
         elif algo == 'usercf':
             cf = UserBasedCollaborativeFiltering(ratings_file=tmp_ratings_path, movies_file=MOVIES_CSV_PATH)
             cf.load_data()
@@ -215,11 +230,12 @@ def compare_algorithms(
     # Friendly labels and descriptions for display
     label_map = {
         "mf": {"label": "project", "desc": "Matirx Factorization Algorithm customized  for our Project"},
+        "simple_mf": {"label": "simple MF", "desc": "Simple Matrix Factorization using SVD"},
         "usercf": {"label": "user-based CF", "desc": "User-based Collaborative Filtering"},
         "cb": {"label": "content-based", "desc": "Content-based (Title+Genres TF-IDF)"},
     }
     # Short method names for axes and table (as requested)
-    short_map = {"mf": "project", "usercf": "usercf", "cb": "cb"}
+    short_map = {"mf": "project", "simple_mf": "simple_mf", "usercf": "usercf", "cb": "cb"}
     df["method"] = df["algo"].map(lambda a: short_map.get(a, a))
     out_png = os.path.join(os.path.dirname(__file__), f"holdout_metrics_user{user_id}.png")
     try:
@@ -317,7 +333,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--min-positive-rating", type=float, default=3.5, help="Threshold to treat held-out ratings as positive")
     p.add_argument("--split-by", choices=["random", "time"], default="random")
     p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--algo", choices=["mf", "usercf", "cb", "all"], default="mf", help="Algorithm: mf, usercf, cb, or all")
+    p.add_argument("--algo", choices=["mf", "simple_mf", "usercf", "cb", "all"], default="mf", help="Algorithm: mf, simple_mf, usercf, cb, or all")
     p.add_argument("--show-details", action="store_true")
     return p.parse_args()
 

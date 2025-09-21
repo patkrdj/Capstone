@@ -5,6 +5,7 @@ from typing import Optional
 
 from matrix_factorization_recommender import get_user_recommendations
 from content_based_filtering import SalesBasedFiltering
+import os
 
 app = FastAPI()
 
@@ -23,10 +24,17 @@ def run(userId: int = Query(..., alias="userId"), topN: int = Query(20, alias="t
         ) or []
 
         # 2) 블루레이 추천 (콘텐츠 기반)
-        sbf = SalesBasedFiltering()
-        sbf.load_data()
-        sbf.create_sales_feature_matrix(min_df=2, use_log_tf=True)
-        bluray_results = sbf.find_best_sales_for_movies(recommendations, user_id=userId, top_n=topN)
+        bluray_results = []
+        disable_sbf = os.getenv("DISABLE_SBF", "false").lower() in ("1", "true", "yes")
+        if not disable_sbf:
+            try:
+                sbf = SalesBasedFiltering()
+                sbf.load_data()
+                sbf.create_sales_feature_matrix(min_df=2, use_log_tf=True)
+                bluray_results = sbf.find_best_sales_for_movies(recommendations, user_id=userId, top_n=topN)
+            except Exception as e:
+                # 윈도우/외부 환경에서 DB 연결 실패 등은 무시하고 영화 추천만 반환
+                bluray_results = []
 
         # numpy 타입을 Python 기본 타입으로 변환하는 헬퍼 함수
         def convert_numpy_types(obj):
