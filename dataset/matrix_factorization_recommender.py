@@ -6,7 +6,7 @@ import warnings
 warnings.filterwarnings('ignore')
 
 class SVDRecommender:
-    def __init__(self, ratings_file, movies_file, n_components=50):
+    def __init__(self, ratings_file, movies_file, n_components=20):
         """
         SVD 기반 추천 시스템
         
@@ -48,69 +48,27 @@ class SVDRecommender:
         print(f"평점 행렬 크기: {self.user_movie_matrix.shape}")
         print(f"평점 행렬 희소성: {(1 - self.user_movie_matrix.count().sum() / (self.user_movie_matrix.shape[0] * self.user_movie_matrix.shape[1])) * 100:.2f}%")
         
-    def fill_missing_values(self, method='svd', max_iter=10):
-        """결측값 채우기"""
-        if method == 'svd':
-            print("SVD를 이용한 반복적 결측값 채우기...")
-            self._iterative_svd_imputation(max_iter)
-        else:
-            print("전체 평균으로 결측값 채우기...")
-            global_mean = self.user_movie_matrix.mean().mean()
-            self.user_movie_matrix_filled = self.user_movie_matrix.fillna(global_mean)
-            
-            if self.user_movie_matrix_filled.isna().any().any():
-                self.user_movie_matrix_filled = self.user_movie_matrix_filled.fillna(0)
-            
-            print(f"전체 평균 평점: {global_mean:.2f}")
+    def fill_missing_values(self, method='mean', max_iter=3):
+        """결측값 채우기 (단순화)"""
+        print("사용자별 평균으로 결측값 채우기...")
         
+        # 사용자별 평균으로 채우기
+        user_means = self.user_movie_matrix.mean(axis=1)
+        self.user_movie_matrix_filled = self.user_movie_matrix.copy()
+        
+        for user_id in self.user_movie_matrix.index:
+            user_mean = user_means[user_id]
+            if pd.isna(user_mean):
+                user_mean = self.user_movie_matrix.mean().mean()
+            self.user_movie_matrix_filled.loc[user_id] = self.user_movie_matrix_filled.loc[user_id].fillna(user_mean)
+        
+        # 여전히 NaN이 있다면 전체 평균으로 채우기
+        if self.user_movie_matrix_filled.isna().any().any():
+            global_mean = self.user_movie_matrix.mean().mean()
+            self.user_movie_matrix_filled = self.user_movie_matrix_filled.fillna(global_mean)
+            
         print("결측값 채우기 완료!")
     
-    def _iterative_svd_imputation(self, max_iter=10):
-        """SVD를 이용한 반복적 결측값 채우기"""
-        # 초기값: 전체 평균으로 채우기
-        global_mean = self.user_movie_matrix.mean().mean()
-        matrix_filled = self.user_movie_matrix.fillna(global_mean)
-        
-        # 결측값 위치 기록
-        missing_mask = self.user_movie_matrix.isna()
-        
-        print(f"초기 전체 평균: {global_mean:.2f}")
-        
-        for iteration in range(max_iter):
-            # SVD 분해
-            svd = TruncatedSVD(n_components=self.n_components, random_state=42)
-            user_factors = svd.fit_transform(matrix_filled)
-            item_factors = svd.components_
-            
-            # 예상 평점 계산
-            predicted_matrix = np.dot(user_factors, item_factors)
-            
-            # 결측값만 업데이트
-            matrix_filled = matrix_filled.copy()
-            # numpy 배열로 변환하여 인덱싱
-            matrix_filled_np = matrix_filled.values
-            predicted_matrix_np = predicted_matrix
-            matrix_filled_np[missing_mask.values] = predicted_matrix_np[missing_mask.values]
-            matrix_filled = pd.DataFrame(matrix_filled_np, 
-                                       index=matrix_filled.index, 
-                                       columns=matrix_filled.columns)
-            
-            # 수렴 확인 (변화량 계산)
-            if iteration > 0:
-                change = np.abs(matrix_filled_np[missing_mask.values] - prev_matrix_np[missing_mask.values]).mean()
-                print(f"반복 {iteration + 1}: 평균 변화량 = {change:.6f}")
-                
-                if change < 0.001:  # 수렴 조건
-                    print(f"수렴 완료 (반복 {iteration + 1})")
-                    break
-            else:
-                print(f"반복 {iteration + 1}: 초기 SVD 완료")
-            
-            prev_matrix = matrix_filled.copy()
-            prev_matrix_np = matrix_filled_np.copy()
-        
-        self.user_movie_matrix_filled = matrix_filled
-        print(f"최종 반복 완료 (총 {min(iteration + 1, max_iter)}회)")
         
     def fit_model(self):
         """SVD 모델 학습"""
@@ -204,56 +162,40 @@ class SVDRecommender:
         }
     
     def calculate_personalized_score(self, user_id, movie_id, predicted_rating, user_prefs=None, movie_rating_counts=None):
-        """개인화된 점수 계산 (최적화된 버전)"""
+        """개인화된 점수 계산 (적당한 수준)"""
         if user_prefs is None:
             user_prefs = self.get_user_preferences(user_id)
         
-        # 장르 선호도만 간단히 적용 (가장 효과적인 부분만)
+        # 간단한 장르 선호도만 적용 (과도한 복잡성 제거)
         genre_bonus = 0.0
         
-        # 영화 정보 캐시에서 가져오기
-        if hasattr(self, '_movie_genres_cache'):
-            movie_genres = self._movie_genres_cache.get(movie_id, [])
-        else:
-            movie_info = self.movies_df[self.movies_df['movieId'] == movie_id]
-            if movie_info.empty:
-                return predicted_rating
-            movie_genres = movie_info.iloc[0]['genres'].split('|')
+        # 영화 장르 정보 가져오기
+        movie_info = self.movies_df[self.movies_df['movieId'] == movie_id]
+        if movie_info.empty:
+            return predicted_rating
         
-        # 장르 선호도 보너스 (간소화)
+        movie_genres = movie_info.iloc[0]['genres'].split('|')
+        
+        # 장르 선호도 보너스 (간단하게)
         for genre in movie_genres:
             if genre in user_prefs['genre_scores']:
                 genre_score = user_prefs['genre_scores'][genre]
                 if genre_score > user_prefs['user_mean']:
-                    genre_bonus += (genre_score - user_prefs['user_mean']) * 0.5
-                else:
-                    genre_bonus += (genre_score - user_prefs['user_mean']) * 0.2
+                    genre_bonus += (genre_score - user_prefs['user_mean']) * 0.3  # 계수 줄임
         
-        # 인기도 패널티 (캐시 활용)
-        popularity_penalty = 0.0
-        if movie_rating_counts is not None:
-            movie_rating_count = movie_rating_counts.get(movie_id, 0)
-        else:
-            movie_rating_count = len(self.ratings_df[self.ratings_df['movieId'] == movie_id])
-        
-        if movie_rating_count > 300:  # 임계값 단순화
-            popularity_penalty = -0.3
-        elif movie_rating_count > 150:
-            popularity_penalty = -0.1
-        
-        # 최종 개인화 점수 계산 (사용자 패턴 조정 제거로 속도 향상)
-        personalized_score = predicted_rating + genre_bonus + popularity_penalty
+        # 최종 개인화 점수 (간단하게)
+        personalized_score = predicted_rating + min(genre_bonus, 0.5)  # 보너스 상한 설정
         
         return np.clip(personalized_score, 0.0, 5.0)
     
-    def recommend_movies(self, user_id, n_recommendations=10, diversity_factor=0.3):
+    def recommend_movies(self, user_id, n_recommendations=10, diversity_factor=0.2):
         """
-        개인화가 강화된 영화 추천 (최적화된 버전)
+        영화 추천 (적당한 개인화 버전)
         
         Args:
             user_id: 사용자 ID
             n_recommendations: 추천할 영화 수
-            diversity_factor: 다양성 인자 (0.0-1.0, 높을수록 다양한 장르 추천)
+            diversity_factor: 다양성 인자 (0.0-0.5 권장)
         """
         print(f"사용자 {user_id}에게 개인화된 영화를 추천하는 중...")
         
@@ -264,37 +206,30 @@ class SVDRecommender:
         # 사용자 선호도 분석 (한 번만)
         user_prefs = self.get_user_preferences(user_id)
         
-        # 영화 장르 캐시 생성 (반복 조회 방지)
-        if not hasattr(self, '_movie_genres_cache'):
-            self._movie_genres_cache = {}
-            for _, row in self.movies_df.iterrows():
-                self._movie_genres_cache[row['movieId']] = row['genres'].split('|')
-        
-        # 추천 후보 영화 필터링 (간소화)
+        # 추천 후보 영화 필터링
         movie_rating_counts = self.ratings_df.groupby('movieId').size()
         movie_rating_counts_dict = movie_rating_counts.to_dict()
         
-        # 더 간단한 필터링 (속도 향상)
-        min_ratings = 5
-        max_ratings = 1000
+        # 간단한 필터링 (최소 평점 수만 제한)
+        min_ratings = 10
         
         candidate_movies = [
             movie_id for movie_id, count in movie_rating_counts_dict.items()
-            if min_ratings <= count <= max_ratings and movie_id not in rated_movies
+            if count >= min_ratings and movie_id not in rated_movies
         ]
         
-        # 후보가 너무 많으면 랜덤 샘플링 (속도 향상)
-        if len(candidate_movies) > 2000:
+        # 후보가 너무 많으면 랜덤 샘플링
+        if len(candidate_movies) > 1000:
             np.random.shuffle(candidate_movies)
-            candidate_movies = candidate_movies[:2000]
+            candidate_movies = candidate_movies[:1000]
         
-        # 각 영화에 대한 개인화된 점수 계산 (배치 처리)
+        # 각 영화에 대한 개인화된 점수 계산
         movie_predictions = []
         
         for movie_id in candidate_movies:
             predicted_rating, status = self.predict_rating(user_id, movie_id)
             if predicted_rating is not None:
-                # 캐시된 데이터로 개인화 점수 계산
+                # 개인화 점수 계산
                 personalized_score = self.calculate_personalized_score(
                     user_id, movie_id, predicted_rating, user_prefs, movie_rating_counts_dict
                 )
@@ -303,16 +238,16 @@ class SVDRecommender:
         # 개인화된 점수 기준으로 정렬
         movie_predictions.sort(key=lambda x: x[1], reverse=True)
         
-        # 다양성 적용 (단순화)
-        if diversity_factor > 0.5:  # 높은 다양성만 적용 (속도 향상)
-            movie_predictions = self._apply_simple_diversity_filter(
-                movie_predictions, n_recommendations
+        # 간단한 장르 다양성 적용 (과도하지 않게)
+        if diversity_factor > 0:
+            movie_predictions = self._apply_simple_genre_diversity(
+                movie_predictions, n_recommendations, diversity_factor
             )
         
         # 상위 추천 영화들 반환
         recommendations = movie_predictions[:n_recommendations]
         
-        # 영화 정보와 함께 반환 (조인 최소화)
+        # 영화 정보와 함께 반환
         result = []
         movie_info_dict = self.movies_df.set_index('movieId')[['title', 'genres']].to_dict('index')
         
@@ -330,114 +265,42 @@ class SVDRecommender:
         
         return result
     
-    def _apply_simple_diversity_filter(self, movie_predictions, n_recommendations):
-        """간단한 다양성 필터 (속도 최적화)"""
-        selected_movies = []
+    def _apply_simple_genre_diversity(self, movie_predictions, n_recommendations, diversity_factor):
+        """간단한 장르 다양성 적용 (과적합 방지)"""
+        if diversity_factor == 0:
+            return movie_predictions
+        
+        selected = []
         used_genres = set()
         
+        # 먼저 높은 점수 순으로 선택하되, 장르 중복 고려
         for movie_id, score, original_score, status in movie_predictions:
-            if len(selected_movies) >= n_recommendations:
+            if len(selected) >= n_recommendations:
                 break
-            
-            # 캐시에서 장르 정보 가져오기
-            if hasattr(self, '_movie_genres_cache'):
-                movie_genres = set(self._movie_genres_cache.get(movie_id, []))
-            else:
+                
+            movie_info = self.movies_df[self.movies_df['movieId'] == movie_id]
+            if movie_info.empty:
                 continue
-            
-            # 장르 중복이 적으면 우선 선택
+                
+            movie_genres = set(movie_info.iloc[0]['genres'].split('|'))
             genre_overlap = len(movie_genres.intersection(used_genres))
             
-            if genre_overlap <= 1:  # 중복이 1개 이하면 선택
-                selected_movies.append((movie_id, score, original_score, status))
+            # 장르 중복이 적거나, 점수가 매우 높으면 선택
+            if genre_overlap <= 1 or len(selected) < n_recommendations // 2:
+                selected.append((movie_id, score, original_score, status))
                 used_genres.update(movie_genres)
         
-        # 부족한 경우 나머지로 채우기
-        if len(selected_movies) < n_recommendations:
+        # 부족하면 나머지로 채우기
+        if len(selected) < n_recommendations:
             remaining = [
                 item for item in movie_predictions 
-                if item[0] not in [m[0] for m in selected_movies]
+                if item[0] not in [s[0] for s in selected]
             ]
-            selected_movies.extend(remaining[:n_recommendations - len(selected_movies)])
+            selected.extend(remaining[:n_recommendations - len(selected)])
         
-        return selected_movies
+        return selected
     
-    def _apply_diversity_filter(self, movie_predictions, diversity_factor, n_recommendations):
-        """다양성을 위한 장르 분산 필터링 (개선된 버전)"""
-        if diversity_factor == 0:
-            return movie_predictions  # 다양성 고려 안함
-        
-        # 모든 영화에 대해 다양성 점수를 계산하여 재정렬
-        movies_with_diversity = []
-        
-        for movie_id, score, original_score, status in movie_predictions:
-            movie_info = self.movies_df[self.movies_df['movieId'] == movie_id]
-            if not movie_info.empty:
-                movie_genres = set(movie_info.iloc[0]['genres'].split('|'))
-                
-                # 기본 다양성 점수 (장르 희귀도 기반)
-                genre_rarity_score = 0
-                for genre in movie_genres:
-                    # 해당 장르를 가진 영화 수가 적을수록 높은 점수
-                    genre_movie_count = len(self.movies_df[self.movies_df['genres'].str.contains(genre, na=False)])
-                    total_movies = len(self.movies_df)
-                    genre_rarity = 1.0 - (genre_movie_count / total_movies)
-                    genre_rarity_score += genre_rarity
-                
-                # 장르 수가 많을수록 다양성 보너스
-                genre_count_bonus = len(movie_genres) * 0.1
-                
-                # 최종 다양성 점수
-                diversity_score = (genre_rarity_score + genre_count_bonus) / len(movie_genres)
-                
-                # 개인화 점수와 다양성 점수를 조합
-                final_score = score * (1 - diversity_factor) + diversity_score * diversity_factor * 3
-                
-                movies_with_diversity.append((movie_id, final_score, original_score, status))
-        
-        # 최종 점수로 재정렬
-        movies_with_diversity.sort(key=lambda x: x[1], reverse=True)
-        
-        # 추가적인 장르 중복 방지 (Greedy 방식)
-        if diversity_factor > 0.5:  # 다양성이 중요한 경우만
-            final_selection = []
-            used_genres = set()
-            remaining_candidates = movies_with_diversity.copy()
-            
-            while len(final_selection) < n_recommendations and remaining_candidates:
-                best_movie = None
-                best_score = -1
-                best_idx = -1
-                
-                for idx, (movie_id, final_score, original_score, status) in enumerate(remaining_candidates):
-                    movie_info = self.movies_df[self.movies_df['movieId'] == movie_id]
-                    if not movie_info.empty:
-                        movie_genres = set(movie_info.iloc[0]['genres'].split('|'))
-                        
-                        # 장르 중복 패널티
-                        overlap_penalty = len(movie_genres.intersection(used_genres)) * 0.5
-                        adjusted_score = final_score - overlap_penalty
-                        
-                        if adjusted_score > best_score:
-                            best_score = adjusted_score
-                            best_movie = (movie_id, final_score, original_score, status)
-                            best_idx = idx
-                
-                if best_movie:
-                    final_selection.append(best_movie)
-                    movie_info = self.movies_df[self.movies_df['movieId'] == best_movie[0]]
-                    if not movie_info.empty:
-                        movie_genres = set(movie_info.iloc[0]['genres'].split('|'))
-                        used_genres.update(movie_genres)
-                    remaining_candidates.pop(best_idx)
-                else:
-                    break
-            
-            # 부족한 경우 나머지로 채움
-            final_selection.extend(remaining_candidates[:n_recommendations - len(final_selection)])
-            return final_selection
-        
-        return movies_with_diversity
+    
         
     def evaluate_recommendations(self, user_id, n_recommendations=10):
         """추천 결과 평가 및 분석"""
@@ -564,7 +427,7 @@ def get_user_recommendations(user_id, n_recommendations=10, random_seed=42, dive
     # SVDRecommender 모델 생성
     if verbose:
         start = time.time()
-    svd_model = SVDRecommender(ratings_file, movies_file, n_components=50)
+    svd_model = SVDRecommender(ratings_file, movies_file, n_components=20)
     if verbose:
         step_times['모델 생성'] = time.time() - start
     
@@ -585,7 +448,7 @@ def get_user_recommendations(user_id, n_recommendations=10, random_seed=42, dive
     # 결측값 채우기
     if verbose:
         start = time.time()
-    svd_model.fill_missing_values(method='svd', max_iter=5)
+    svd_model.fill_missing_values(method='mean', max_iter=3)
     if verbose:
         step_times['결측값 처리'] = time.time() - start
     
