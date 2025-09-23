@@ -156,6 +156,7 @@
         // ratings.csv 기반 인기순 영화 API 호출
         const response = await axios.get('/api/movies/popular?limit=5');
         const popularMovies = response.data;
+        console.log(popularMovies);
         
         popularTitle.textContent = '인기 블루레이';
         
