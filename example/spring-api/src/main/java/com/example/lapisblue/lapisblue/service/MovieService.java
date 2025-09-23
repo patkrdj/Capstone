@@ -62,7 +62,7 @@ public class MovieService {
     }
 
     public List<MoviePopularity> getPopularMoviesFromRatings(int limit) {
-        String ratingsFilePath = "data/ratings.csv";
+        String ratingsFilePath = "/data/ratings.csv";
         Map<Integer, List<Double>> movieRatings = new HashMap<>();
         
         try (BufferedReader br = new BufferedReader(new FileReader(ratingsFilePath))) {
