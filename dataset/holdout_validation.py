@@ -138,6 +138,7 @@ def compare_algorithms(
     min_positive_rating: float,
     split_by: str,
     seed: int,
+    algorithms: List[str] = None,
 ) -> Tuple[pd.DataFrame, str]:
     import time
     ratings = pd.read_csv(RATINGS_CSV_PATH)
@@ -168,8 +169,12 @@ def compare_algorithms(
     heldout_positive = test_u[test_u["rating"] >= min_positive_rating]["movieId"].astype(int).tolist()
     pos_set = set(heldout_positive)
 
+    # 비교할 알고리즘 설정 (기본값: 모든 알고리즘)
+    if algorithms is None:
+        algorithms = ["mf", "simple_mf", "usercf", "cb"]
+
     rows = []
-    for algo in ["mf", "simple_mf", "usercf", "cb"]:
+    for algo in algorithms:
         start = time.perf_counter()
         recs_movie_ids: List[int] = []
         if algo == 'mf':
@@ -288,14 +293,15 @@ def compare_algorithms(
         ax = axes[1, 1]
         ax.axis('off')
         try:
-            info_lines = [
-                f"project: {label_map['mf']['desc']}",
-                f"usercf: {label_map['usercf']['desc']}",
-                f"cb: {label_map['cb']['desc']}",
-            ]
-            legend_text = "\n\n".join(info_lines)
-            ax.text(0.02, 0.5, legend_text, fontsize=9, va='center', ha='left', transform=ax.transAxes,
-                    bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.7))
+            info_lines = []
+            for algo in algorithms:
+                if algo in label_map:
+                    info_lines.append(f"{short_map.get(algo, algo)}: {label_map[algo]['desc']}")
+            
+            if info_lines:
+                legend_text = "\n\n".join(info_lines)
+                ax.text(0.02, 0.5, legend_text, fontsize=9, va='center', ha='left', transform=ax.transAxes,
+                        bbox=dict(boxstyle='round,pad=0.4', facecolor='white', alpha=0.7))
         except Exception:
             pass
 
@@ -333,7 +339,7 @@ def parse_args() -> argparse.Namespace:
     p.add_argument("--min-positive-rating", type=float, default=3.5, help="Threshold to treat held-out ratings as positive")
     p.add_argument("--split-by", choices=["random", "time"], default="random")
     p.add_argument("--seed", type=int, default=42)
-    p.add_argument("--algo", choices=["mf", "simple_mf", "usercf", "cb", "all"], default="mf", help="Algorithm: mf, simple_mf, usercf, cb, or all")
+    p.add_argument("--algo", choices=["mf", "simple_mf", "usercf", "cb", "all", "mf_only"], default="mf", help="Algorithm: mf, simple_mf, usercf, cb, all, or mf_only (matrix factorization only)")
     p.add_argument("--show-details", action="store_true")
     return p.parse_args()
 
@@ -348,6 +354,20 @@ def main() -> None:
             min_positive_rating=args.min_positive_rating,
             split_by=args.split_by,
             seed=args.seed,
+        )
+        print(df.to_string(index=False))
+        if out_png:
+            print(f"Saved chart to: {out_png}")
+        return
+    elif args.algo == 'mf_only':
+        df, out_png = compare_algorithms(
+            user_id=args.user_id,
+            train_count=args.train_count,
+            top_k=args.top_k,
+            min_positive_rating=args.min_positive_rating,
+            split_by=args.split_by,
+            seed=args.seed,
+            algorithms=["mf", "simple_mf"],
         )
         print(df.to_string(index=False))
         if out_png:

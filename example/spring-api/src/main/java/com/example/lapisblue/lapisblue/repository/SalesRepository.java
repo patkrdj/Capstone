@@ -21,6 +21,10 @@ public interface SalesRepository extends JpaRepository<Sales, Integer> {
 
     @Query("select s.id from Sales s where lower(s.blurayTitle) like lower(concat('%', :keyword, '%'))")
     java.util.List<Integer> findIdsByBlurayTitleLike(@Param("keyword") String keyword);
+
+    // 특정 영화 ID들의 Sales 정보 조회
+    @Query("select s from Sales s where s.movie.id in :movieIds")
+    java.util.List<Sales> findByMovieIdIn(@Param("movieIds") java.util.List<Integer> movieIds);
 }
 
 

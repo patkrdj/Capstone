@@ -105,12 +105,52 @@ async function searchMovies(query) {
 }
 ```
 
+### Popular Movies (인기순)
+ratings.csv 데이터를 기반으로 인기순으로 정렬된 영화 목록과 해당 블루레이 판매 정보를 반환합니다.
+
+DTO shape
+```ts
+type PopularMovieResponse = {
+  movieId: number;
+  title: string;
+  director: string | null;
+  averageRating: number;           // ratings.csv 기반 평균 평점
+  ratingCount: number;             // 평점 개수
+  popularityScore: number;         // 인기 점수 (평균평점 × log(평점개수 + 1))
+  salesInfo: SalesResponse[];      // 해당 영화의 블루레이 판매 정보 (최저가 1개)
+};
+```
+
+- Popular: GET `/api/movies/popular?limit=...` → `PopularMovieResponse[]`
+```javascript
+async function getPopularMovies(limit = 20) {
+  const qs = limit ? `?limit=${encodeURIComponent(limit)}` : '';
+  return await apiFetch(`/movies/popular${qs}`);
+}
+```
+
+**특징:**
+- 인기 점수 = `평균평점 × log(평점개수 + 1)`으로 계산
+- 최소 10개 이상의 평점이 있는 영화만 포함
+- 각 영화마다 가장 저렴한 블루레이 1개의 판매 정보 포함
+- ratings.csv 파일의 실제 평점 데이터 기반
+
 ### Example flow
 ```javascript
 (async () => {
   const token = await login('alice@example.com', 'secret123');
   const me = await getMe(token);
   const movies = await listMovies();
+  const popularMovies = await getPopularMovies(10); // 인기 영화 상위 10개
+  
+  // 인기 영화 사용 예시
+  popularMovies.forEach(movie => {
+    console.log(`${movie.title}: ⭐${movie.averageRating.toFixed(1)} (${movie.ratingCount}명)`);
+    if (movie.salesInfo.length > 0) {
+      const sale = movie.salesInfo[0];
+      console.log(`📀 ${sale.blurayTitle} - ${sale.price?.toLocaleString()}원 (${sale.siteName})`);
+    }
+  });
 })();
 ```
 
