@@ -168,11 +168,12 @@ class SVDRecommender:
         
         # 간단한 장르 선호도만 적용 (과도한 복잡성 제거)
         genre_bonus = 0.0
+        benefited_genres = []  # benefit을 받은 장르들 저장
         
         # 영화 장르 정보 가져오기
         movie_info = self.movies_df[self.movies_df['movieId'] == movie_id]
         if movie_info.empty:
-            return predicted_rating
+            return predicted_rating, []
         
         movie_genres = movie_info.iloc[0]['genres'].split('|')
         
@@ -181,12 +182,14 @@ class SVDRecommender:
             if genre in user_prefs['genre_scores']:
                 genre_score = user_prefs['genre_scores'][genre]
                 if genre_score > user_prefs['user_mean']:
-                    genre_bonus += (genre_score - user_prefs['user_mean']) * 0.3  # 계수 줄임
+                    bonus = (genre_score - user_prefs['user_mean']) * 0.3  # 계수 줄임
+                    genre_bonus += bonus
+                    benefited_genres.append(genre)  # benefit을 받은 장르 추가
         
         # 최종 개인화 점수 (간단하게)
         personalized_score = predicted_rating + min(genre_bonus, 0.5)  # 보너스 상한 설정
         
-        return np.clip(personalized_score, 0.0, 5.0)
+        return np.clip(personalized_score, 0.0, 5.0), benefited_genres
     
     def recommend_movies(self, user_id, n_recommendations=10, diversity_factor=0.2):
         """
@@ -230,10 +233,10 @@ class SVDRecommender:
             predicted_rating, status = self.predict_rating(user_id, movie_id)
             if predicted_rating is not None:
                 # 개인화 점수 계산
-                personalized_score = self.calculate_personalized_score(
+                personalized_score, benefited_genres = self.calculate_personalized_score(
                     user_id, movie_id, predicted_rating, user_prefs, movie_rating_counts_dict
                 )
-                movie_predictions.append((movie_id, personalized_score, predicted_rating, status))
+                movie_predictions.append((movie_id, personalized_score, predicted_rating, status, benefited_genres))
         
         # 개인화된 점수 기준으로 정렬
         movie_predictions.sort(key=lambda x: x[1], reverse=True)
@@ -251,7 +254,7 @@ class SVDRecommender:
         result = []
         movie_info_dict = self.movies_df.set_index('movieId')[['title', 'genres']].to_dict('index')
         
-        for movie_id, personalized_score, original_score, status in recommendations:
+        for movie_id, personalized_score, original_score, status, benefited_genres in recommendations:
             if movie_id in movie_info_dict:
                 movie_info = movie_info_dict[movie_id]
                 result.append({
@@ -260,7 +263,8 @@ class SVDRecommender:
                     'genres': movie_info['genres'],
                     'predicted_rating': round(original_score, 2),
                     'personalized_score': round(personalized_score, 2),
-                    'status': status
+                    'status': status,
+                    'benefited_genres': benefited_genres  # benefit을 받은 장르들 추가
                 })
         
         return result
@@ -274,7 +278,7 @@ class SVDRecommender:
         used_genres = set()
         
         # 먼저 높은 점수 순으로 선택하되, 장르 중복 고려
-        for movie_id, score, original_score, status in movie_predictions:
+        for movie_id, score, original_score, status, benefited_genres in movie_predictions:
             if len(selected) >= n_recommendations:
                 break
                 
@@ -287,7 +291,7 @@ class SVDRecommender:
             
             # 장르 중복이 적거나, 점수가 매우 높으면 선택
             if genre_overlap <= 1 or len(selected) < n_recommendations // 2:
-                selected.append((movie_id, score, original_score, status))
+                selected.append((movie_id, score, original_score, status, benefited_genres))
                 used_genres.update(movie_genres)
         
         # 부족하면 나머지로 채우기
@@ -394,7 +398,7 @@ class SVDRecommender:
             print("평가할 데이터가 없습니다.")
             return None
 
-def get_user_recommendations(user_id, n_recommendations=10, random_seed=42, diversity_factor=0.3, include_personalized_score=False, verbose=False):
+def get_user_recommendations(user_id, n_recommendations=10, random_seed=42, diversity_factor=0.3, include_personalized_score=False, include_benefited_genres=False, verbose=False):
     """
     개인화가 강화된 SVDRecommender를 사용해서 유저 ID로 추천 영화 ID, 제목, 평점을 가져오는 함수
     
@@ -404,11 +408,13 @@ def get_user_recommendations(user_id, n_recommendations=10, random_seed=42, dive
         random_seed: 랜덤 시드 (재현 가능한 결과를 위해)
         diversity_factor: 다양성 인자 (0.0-1.0, 높을수록 다양한 장르 추천)
         include_personalized_score: True면 개인화 점수도 함께 반환
+        include_benefited_genres: True면 benefit을 받은 장르들도 함께 반환
         verbose: True면 상세한 시간 측정 출력
         
     Returns:
-        list: include_personalized_score가 False면 [(movie_id, title, predicted_rating, avg_rating), ...]
-              include_personalized_score가 True면 [(movie_id, title, predicted_rating, personalized_score, avg_rating), ...]
+        list: 기본 [(movie_id, title, predicted_rating, avg_rating), ...]
+              include_personalized_score가 True면 personalized_score 추가
+              include_benefited_genres가 True면 benefited_genres 추가
     """
     import time
     
@@ -485,11 +491,20 @@ def get_user_recommendations(user_id, n_recommendations=10, random_seed=42, dive
         # 해당 영화의 평균 평점 가져오기
         avg_rating = movie_avg_ratings.get(movie_id, 0.0)
         
+        # 결과 튜플 구성
+        result_tuple = [movie_id, title, predicted_rating]
+        
         if include_personalized_score:
             personalized_score = rec['personalized_score']
-            result.append((movie_id, title, predicted_rating, personalized_score, avg_rating))
-        else:
-            result.append((movie_id, title, predicted_rating, avg_rating))
+            result_tuple.append(personalized_score)
+        
+        result_tuple.append(avg_rating)
+        
+        if include_benefited_genres:
+            benefited_genres = rec.get('benefited_genres', [])
+            result_tuple.append(benefited_genres)
+        
+        result.append(tuple(result_tuple))
     
     if verbose:
         step_times['결과 구성'] = time.time() - start
