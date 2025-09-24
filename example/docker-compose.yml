@@ -19,11 +19,13 @@ services:
       - JWT_SECRET=VGhpcy1pcy1hLXN1cGVyLXNlY3JldC1zZWVkLWF0LWxlYXN0LTMyLWNoYXJzLWxvbmc=
       - JWT_TTL_SECONDS=900
       - PY_RECO_BASE=http://py-reco:8000
+      - APP_DATASET_DIR=/data/dataset
     ports:
       - "8080:8080"
     restart: unless-stopped
     volumes:
       - ./spring-api/data:/data
+      - ../dataset:/data/dataset:rw
 
   py-reco:
     build:
@@ -32,4 +34,7 @@ services:
     container_name: py-reco
     environment:
       - PYTHONUNBUFFERED=1
+      - APP_DATASET_DIR=/data/dataset
     restart: unless-stopped
+    volumes:
+      - ../dataset:/data/dataset:rw
