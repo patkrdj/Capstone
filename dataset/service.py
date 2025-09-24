@@ -12,6 +12,48 @@ import os
 app = FastAPI()
 
 
+def generate_recommendation_reason(benefited_genres, personalized_score, predicted_rating):
+    """
+    benefit 받은 장르들을 바탕으로 추천 사유 문장을 생성
+    
+    Args:
+        benefited_genres: benefit을 받은 장르 리스트
+        personalized_score: 개인화 점수
+        predicted_rating: 기본 예상 평점
+    
+    Returns:
+        str: 추천 사유 문장
+    """
+    if not benefited_genres:
+        return "당신의 전반적인 평점 패턴을 기반으로 추천되었습니다."
+    
+    # 장르를 한국어로 번역
+    genre_translations = {
+        'Action': '액션', 'Adventure': '모험', 'Animation': '애니메이션',
+        'Children': '아동', 'Comedy': '코미디', 'Crime': '범죄',
+        'Documentary': '다큐멘터리', 'Drama': '드라마', 'Fantasy': '판타지',
+        'Film-Noir': '필름 누아르', 'Horror': '호러', 'Musical': '뮤지컬',
+        'Mystery': '미스터리', 'Romance': '로맨스', 'Sci-Fi': 'SF',
+        'Thriller': '스릴러', 'War': '전쟁', 'Western': '서부'
+    }
+    
+    # 장르를 한국어로 변환
+    korean_genres = [genre_translations.get(genre, genre) for genre in benefited_genres]
+    
+    # 부스트 정도 계산
+    boost = personalized_score - predicted_rating
+    
+    if len(korean_genres) == 1:
+        reason = f"당신이 선호하는 {korean_genres[0]} 장르가 포함되었습니다."
+    elif len(korean_genres) == 2:
+        reason = f"당신이 선호하는 {korean_genres[0]}, {korean_genres[1]} 장르가 포함되었습니다."
+    else:
+        genres_str = ', '.join(korean_genres[:-1]) + f", {korean_genres[-1]}"
+        reason = f"당신이 선호하는 {genres_str} 장르들이 포함되었습니다."
+    
+    return reason
+
+
 @app.get("/run")
 def run(userId: int = Query(..., alias="userId"), topN: int = Query(20, alias="topN")):
     try:
@@ -22,8 +64,17 @@ def run(userId: int = Query(..., alias="userId"), topN: int = Query(20, alias="t
             random_seed=293,
             diversity_factor=0.3,
             include_personalized_score=True,
+            include_benefited_genres=True,
             verbose=False,
         ) or []
+        
+        # 각 영화의 추천 사유를 미리 생성
+        movie_reasons = {}
+        for rec in recommendations:
+            # 튜플 언패킹: (movie_id, title, predicted_rating, personalized_score, avg_rating, benefited_genres)
+            movie_id, title, predicted_rating, personalized_score, avg_rating, benefited_genres = rec
+            reason = generate_recommendation_reason(benefited_genres, personalized_score, predicted_rating)
+            movie_reasons[movie_id] = reason
 
         # 2) 블루레이 추천 (콘텐츠 기반)
         bluray_results = []
@@ -91,12 +142,26 @@ def run(userId: int = Query(..., alias="userId"), topN: int = Query(20, alias="t
                 continue
             if mid_int in rated_movie_ids:
                 continue
+            # 기존 reason과 영화 추천 사유 결합
+            existing_reason = r.get("reason", "")
+            movie_reason = movie_reasons.get(mid_int, "")
+            
+            # 두 사유를 결합 (둘 다 있으면 구분해서 표시)
+            if existing_reason and movie_reason:
+                combined_reason = f"{movie_reason} {existing_reason}"
+            elif movie_reason:
+                combined_reason = movie_reason
+            elif existing_reason:
+                combined_reason = existing_reason
+            else:
+                combined_reason = "추천 알고리즘에 의해 선별되었습니다."
+            
             filtered.append({
                 "movieId": mid_int,
                 "movieTitle": r.get("movie_title"),
                 "saleId": convert_numpy_types((r.get("best_sale") or {}).get("id")) if r.get("best_sale") else None,
                 "similarityScore": convert_numpy_types(r.get("similarity_score", 0.0)),
-                "reason": r.get("reason", "")
+                "reason": combined_reason
             })
 
         # 최종 응답 개수는 항상 topN을 넘지 않도록 슬라이싱
@@ -159,5 +224,3 @@ def append_rating(userId: int = Query(..., alias="userId"), salesId: int = Query
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
-
-
