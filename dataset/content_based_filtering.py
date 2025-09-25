@@ -4,22 +4,15 @@ from scipy.sparse import csr_matrix
 import warnings
 import os
 import pymysql
+from .config import get_db_config
 from contextlib import contextmanager
 warnings.filterwarnings('ignore')
 
 
 @contextmanager
 def get_mysql_connection():
-	"""MySQL 연결 생성"""
-	conn = pymysql.connect(
-		host='13.58.174.167',
-		port=3306,
-		user='admin',
-		password='Admin1234@',
-		database='lapisbluedb',
-		charset='utf8mb4',
-		autocommit=True
-	)
+	"""MySQL 연결 생성 (환경변수 기반)"""
+	conn = pymysql.connect(**get_db_config())
 	try:
 		yield conn
 	finally:
