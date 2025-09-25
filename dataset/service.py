@@ -109,17 +109,10 @@ def run(userId: int = Query(..., alias="userId"), topN: int = Query(20, alias="t
             dataset_dir = os.getenv("APP_DATASET_DIR") or "/app/dataset"
             ml_dir = os.path.join(dataset_dir, "ml-latest-small")
             ratings_csv_path = os.path.join(ml_dir, "ratings.csv")
-            personal_csv_path = os.path.join(ml_dir, "personal_ratings.csv")
 
             frames = []
             if os.path.exists(ratings_csv_path):
                 frames.append(pd.read_csv(ratings_csv_path, usecols=["userId", "movieId"]))
-            if os.path.exists(personal_csv_path):
-                # 개인 평점도 제외 집합에 포함
-                try:
-                    frames.append(pd.read_csv(personal_csv_path, usecols=["userId", "movieId"]))
-                except Exception:
-                    pass
 
             rated_df = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame(columns=["userId","movieId"])
             # 안전 캐스팅 및 NA 제거

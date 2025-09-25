@@ -378,18 +378,6 @@ class SalesBasedFiltering:
 			print("추천할 sales가 없습니다.")
 		return recommendations
 
-	def search_movie_by_title(self, title_query):
-		raise NotImplementedError("영화 검색 기능은 제거되었습니다 (블루레이 추천만 지원).")
-
-	def get_movie_by_id(self, movie_id):
-		raise NotImplementedError("영화 조회 기능은 제거되었습니다 (블루레이 추천만 지원).")
-
-	def recommend_similar_movies(self, movie_title_or_id, n_recommendations=10, min_score=0.0):
-		raise NotImplementedError("영화 유사도 추천 기능은 제거되었습니다 (블루레이 추천만 지원).")
-
-	def evaluate_movie_recommendations(self, movie_title_or_id, n_recommendations=10):
-		raise NotImplementedError("영화 기반 추천 결과 출력 기능은 제거되었습니다 (블루레이 추천만 지원).")
-
 	def find_best_sales_for_movies(self, movie_recommendations, user_id, top_n=None):
 		"""
 		Content-based filtering으로 추천받은 영화 리스트에 대해 각 영화의 최적 블루레이(sales) 찾기
@@ -516,15 +504,6 @@ class SalesBasedFiltering:
 		best_reason = self._get_content_based_reason(best_sale, best_score)
 		return (best_sale, best_score, best_reason)
 
-	def _default_sales_recommendation(self, movie_recommendations, top_n=None):
-		"""
-		사용자 프로필이 없을 때 사용하는 기본 추천 방식 (화질 우선, 가격 고려)
-		
-		Args:
-			movie_recommendations: 영화 추천 리스트
-			top_n: 상위 N개 블루레이만 반환 (None이면 모든 영화)
-		"""
-		raise RuntimeError("기본 sales 추천 로직은 제거되었습니다. 사용자 프로필이 필요합니다.")
 
 	def _get_content_based_reason(self, sale, similarity_score):
 		"""Content-based filtering 선택 이유 생성"""
@@ -532,9 +511,6 @@ class SalesBasedFiltering:
 			return "No sales available"
 		
 		reasons = []
-		
-		# 유사도 점수
-		reasons.append(f"유사도 {similarity_score:.3f}")
 		
 		# 화질/형식 코드 해석
 		quality = sale.get('quality', '').upper()
@@ -557,11 +533,6 @@ class SalesBasedFiltering:
 		if not matched_flag:
 			reasons.append("화질 정보 없음")
 		
-		# 가격
-		price = sale.get('price', 0)
-		if price > 0:
-			reasons.append(f"{price:,}원")
-		
 		# 리미티드 에디션
 		if sale.get('is_limited_edition'):
 			reasons.append("한정판")
@@ -572,150 +543,8 @@ class SalesBasedFiltering:
 		else:
 			reasons.append("수입판")
 		
-		return ", ".join(reasons)
-
-	def display_movie_sales_recommendations(self, results, show_details=True, max_display=20):
-		"""Content-based filtering 추천 결과를 보기 좋게 출력"""
-		if not results:
-			print("추천 결과가 없습니다.")
-			return
-		
-		print(f"\n=== Content-based Filtering 블루레이 추천 결과 (순수 콘텐츠 기반) ===")
-		print(f"{'순위':<4} {'영화 제목':<35} {'유사도':<8} {'Sale ID':<8} {'가격':<10} {'화질':<8} {'선택 이유':<25}")
-		print("-" * 150)
-		
-		displayed = 0
-		for i, result in enumerate(results, 1):
-			if displayed >= max_display:
-				print(f"\n... 총 {len(results)}개 중 상위 {max_display}개만 표시됨")
-				break
-			
-			movie_title = result['movie_title'][:32] + "..." if len(result['movie_title']) > 35 else result['movie_title']
-			similarity_score = result.get('similarity_score', 0.0)
-			
-			best_sale = result.get('best_sale')
-			if best_sale:
-				sale_id = best_sale.get('id', 'N/A')
-				price = f"{best_sale.get('price', 0):,}원" if best_sale.get('price') else "N/A"
-				quality = best_sale.get('quality', 'N/A')
-				reason = result.get('reason', '')[:25]
-				
-				print(f"{i:<4} {movie_title:<35} {similarity_score:<8.3f} {sale_id:<8} {price:<10} {quality:<8} {reason:<25}")
-				displayed += 1
-			else:
-				print(f"{i:<4} {movie_title:<35} {similarity_score:<8.3f} {'N/A':<8} {'N/A':<10} {'N/A':<8} {'블루레이 없음':<25}")
-		
-		# 통계 정보
-		sales_available = len([r for r in results if r.get('best_sale')])
-		print(f"\n📊 Content-based 추천 통계 (순수 콘텐츠 기반):")
-		print(f"   블루레이 판매 중인 영화: {sales_available}/{len(results)}개")
-		if sales_available > 0:
-			avg_price = np.mean([r['best_sale']['price'] for r in results if r.get('best_sale') and r['best_sale'].get('price')])
-			avg_similarity = np.mean([r['similarity_score'] for r in results if r.get('best_sale')])
-			print(f"   평균 추천 가격: {avg_price:,.0f}원")
-			print(f"   평균 유사도 점수: {avg_similarity:.3f}")
-		
-		return results
-
-
-
-
-def main():
-	"""메인 실행 함수 (데이터베이스 직접 연동)"""
-	print("=== Content-based Filtering 시스템 (Database 직접 연동) ===")
-	print("📊 데이터베이스 reviews 테이블에서 평점 데이터를 직접 로드합니다.")
-	
-	# 파이프라인 구동
-	try:
-		sbf = SalesBasedFiltering()
-		sbf.load_data()  # 데이터베이스에서 reviews 테이블 로드
-		sbf.create_sales_feature_matrix(min_df=2, use_log_tf=True)
-	except Exception as e:
-		print(f"❌ 시스템 초기화 실패: {e}")
-		return
-
-	print("\n" + "="*80)
-	print("영화 추천 시스템")
-	print("="*80)
-	print("1. 영화 제목으로 비슷한 영화 찾기")
-	print("2. 사용자 기반 추천 (기존 기능)")
-	print("3. 종료")
-	
-	while True:
-		try:
-			choice = input("\n선택하세요 (1-3): ").strip()
-			
-			if choice == '1':
-				# 영화 제목 입력 받기
-				movie_query = input("\n추천받을 영화 제목을 입력하세요: ").strip()
-				if movie_query:
-					print(f"\n'{movie_query}'와 비슷한 영화를 찾는 중...")
-					sbf.evaluate_movie_recommendations(movie_query, n_recommendations=10)
-				else:
-					print("영화 제목을 입력해주세요.")
-					
-			elif choice == '2':
-				# 기존 사용자 기반 추천
-				try:
-					user_id = int(input("\n사용자 ID를 입력하세요: ").strip())
-					sbf.evaluate_recommendations(user_id, n_recommendations=10)
-				except ValueError:
-					print("올바른 사용자 ID를 입력해주세요.")
-					
-			elif choice == '3':
-				print("\n프로그램을 종료합니다.")
-				break
-				
-			else:
-				print("1, 2, 또는 3을 선택해주세요.")
-				
-		except KeyboardInterrupt:
-			print("\n\n프로그램이 중단되었습니다.")
-			break
-		except Exception as e:
-			print(f"오류가 발생했습니다: {e}")
-
-def demo_movie_recommendations():
-	"""영화 추천 데모 함수 (데이터베이스 직접 연동)"""
-	print("=== 영화 추천 데모 (Database 직접 연동) ===")
-
-	# 시스템 초기화
-	try:
-		sbf = SalesBasedFiltering()
-		sbf.load_data()  # 데이터베이스에서 reviews 테이블 로드
-		sbf.create_sales_feature_matrix(min_df=2, use_log_tf=True)
-	except Exception as e:
-		print(f"❌ 시스템 초기화 실패: {e}")
-		return
-
-	# 테스트 영화들
-	test_movies = [
-		"Toy Story",
-		"Matrix",
-		"Star Wars",
-		"Inception",
-		"Avengers"
-	]
-
-	print("\n" + "="*60)
-	print("영화 기반 추천 데모")
-	print("="*60)
-
-	for movie_title in test_movies:
-		print(f"\n{'='*40}")
-		print(f"'{movie_title}' 기반 추천")
-		print(f"{'='*40}")
-		try:
-			recommendations = sbf.recommend_similar_movies(movie_title, n_recommendations=5)
-			if recommendations:
-				for i, rec in enumerate(recommendations, 1):
-					print(f"{i}. {rec['title']} (유사도: {rec['similarity']})")
-			else:
-				print("추천 결과가 없습니다.")
-		except Exception as e:
-			print(f"오류 발생: {e}")
-		print("-" * 40)
-
-
-if __name__ == "__main__":
-	main()
+		# 문장 형식으로 반환
+		items = [r for r in reasons if r]
+		if not items:
+			return "관련 특성이 포함되었습니다."
+		return f"당신이 선호하는 {', '.join(items)} 특성이 포함되었습니다."
