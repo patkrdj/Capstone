@@ -71,9 +71,6 @@ def main(user_id=612, top_n=20, json_output=False):
                 # Content-based filtering으로 추천받은 영화들의 최적 블루레이 찾기 (상위 20개만)
                 bluray_results = sbf.find_best_sales_for_movies(recommendations, user_id, top_n=top_n)
                 
-                # 결과 출력
-                sbf.display_movie_sales_recommendations(bluray_results, max_display=20)
-
                 # JSON 출력 모드 또는 Spring 전송
                 if json_output:
                     payload = {

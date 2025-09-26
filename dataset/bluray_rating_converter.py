@@ -5,7 +5,7 @@ import re
 from datetime import datetime
 import random
 import pymysql
-from .config import get_db_config
+from config import get_db_config
 from contextlib import contextmanager
 
 @contextmanager
