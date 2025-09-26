@@ -7,6 +7,7 @@ import time
 from typing import Any, Dict, Iterable, List, Optional, Tuple
 
 import pymysql
+from dataset.config import get_db_config
 
 
 def get_logger() -> logging.Logger:
@@ -24,19 +25,15 @@ logger = get_logger()
 
 
 def get_mysql_connection() -> pymysql.connections.Connection:
-    host = os.getenv("MYSQL_HOST", "13.58.174.167")
-    port = int(os.getenv("MYSQL_PORT", "3306"))
-    user = os.getenv("MYSQL_USER", "admin")
-    password = os.getenv("MYSQL_PASSWORD", "Admin1234@")
-    database = os.getenv("MYSQL_DATABASE", "lapisbluedb")
+    config = get_db_config()
     conn = pymysql.connect(
-        host=host,
-        port=port,
-        user=user,
-        password=password,
-        database=database,
-        autocommit=False,
-        charset="utf8mb4",
+        host=config["host"],
+        port=config["port"],
+        user=config["user"],
+        password=config["password"],
+        database=config["database"],
+        autocommit=False,  # json_sales_loader에서는 트랜잭션 제어를 위해 False 사용
+        charset=config["charset"],
         cursorclass=pymysql.cursors.DictCursor,
         connect_timeout=10,
         read_timeout=30,

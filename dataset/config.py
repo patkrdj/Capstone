@@ -29,15 +29,18 @@ def get_env(name: str, default: str | None = None) -> str:
 
 
 def get_db_config() -> dict:
+    # DB_* 환경 변수를 우선으로 하고, MYSQL_* 환경 변수도 지원
     return {
-        "host": get_env("DB_HOST"),
-        "port": int(os.getenv("DB_PORT", "3306")),
-        "user": get_env("DB_USER"),
-        "password": get_env("DB_PASSWORD"),
-        "database": get_env("DB_NAME"),
-        "charset": os.getenv("DB_CHARSET", "utf8mb4"),
+        "host": os.getenv("DB_HOST") or os.getenv("MYSQL_HOST", "13.58.174.167"),
+        "port": int(os.getenv("DB_PORT") or os.getenv("MYSQL_PORT", "3306")),
+        "user": os.getenv("DB_USER") or os.getenv("MYSQL_USER", "admin"),
+        "password": os.getenv("DB_PASSWORD") or os.getenv("MYSQL_PASSWORD", "Admin1234@"),
+        "database": os.getenv("DB_NAME") or os.getenv("MYSQL_DATABASE", "lapisbluedb"),
+        "charset": os.getenv("DB_CHARSET") or os.getenv("MYSQL_CHARSET", "utf8mb4"),
         "autocommit": True,
     }
+
+
 
 
 def get_dataset_dir() -> str:
