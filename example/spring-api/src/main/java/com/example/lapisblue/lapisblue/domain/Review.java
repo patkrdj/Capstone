@@ -28,8 +28,15 @@ public class Review {
     @Column(name = "review_comment", columnDefinition = "TEXT")
     private String reviewComment;
 
-    @Column(name = "created_at", nullable = false, updatable = false, insertable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+
+    @PrePersist
+    private void onCreate() {
+        if (this.createdAt == null) {
+            this.createdAt = Instant.now();
+        }
+    }
 
     @Embeddable
     @Getter
