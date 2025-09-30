@@ -23,13 +23,20 @@ public class Review {
     private Sales sales;
 
     @Column(name = "rating", nullable = false)
-    private Integer rating; // -1, 0, 1
+    private Float rating;
 
     @Column(name = "review_comment", columnDefinition = "TEXT")
     private String reviewComment;
 
-    @Column(name = "created_at", nullable = false, updatable = false, insertable = false)
+    @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt;
+
+    @PrePersist
+    private void onCreate() {
+        if (this.createdAt == null) {
+            this.createdAt = Instant.now();
+        }
+    }
 
     @Embeddable
     @Getter

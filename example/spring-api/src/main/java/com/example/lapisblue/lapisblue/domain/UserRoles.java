@@ -9,11 +9,17 @@ import lombok.Setter;
 @Getter
 @Table(name = "user_roles")
 public class UserRoles {
-    @Id
-    @Column(name = "user_id")
-    private int user_id;
+    @EmbeddedId
+    private UserRolesId id;
 
-    @Column(name = "role_id")
-    private int role_id;
+    @ManyToOne(fetch = FetchType.LAZY)
+    @MapsId("userId")
+    @JoinColumn(name = "user_id")
+    private User user;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @MapsId("roleId")
+    @JoinColumn(name = "role_id")
+    private Role role;
 }
 

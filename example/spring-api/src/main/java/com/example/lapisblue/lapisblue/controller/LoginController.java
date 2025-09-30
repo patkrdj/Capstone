@@ -58,6 +58,7 @@ public class LoginController {
             }
             var user = userOpt.get();
             return ResponseEntity.ok(java.util.Map.of(
+                    "userId", user.getId(),
                     "usernameOrEmail", subject,
                     "username", user.getUsername(),
                     "email", user.getEmail(),

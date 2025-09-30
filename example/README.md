@@ -66,3 +66,20 @@ services:
 ---
 
 필요하면 API 리버스 프록시 설정을 `nginx.conf`에 다시 추가할 수 있습니다.
+
+
+## Secret configuration (.env)
+
+To avoid committing DB credentials, copy `config_example.env` to `.env` at the repo root and edit the values:
+
+```
+cp config_example.env .env
+# then edit .env
+```
+
+Required keys:
+- `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD`
+
+Python services automatically load `.env` via `dataset/config.py` (uses python-dotenv if installed). Spring uses environment placeholders in `example/spring-api/src/main/resources/application.properties`.
+
+Git ignores `.env` and similar secret files.

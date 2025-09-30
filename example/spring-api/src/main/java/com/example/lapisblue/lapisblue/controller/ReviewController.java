@@ -75,6 +75,9 @@ public class ReviewController {
             }
             if (userId != null) {
                 var list = reviewService.findByUserId(userId);
+                if (list == null || list.isEmpty()) {
+                    return ResponseEntity.ok(null);
+                }
                 var username = userRepository.findById(userId).map(u -> u.getUsername()).orElse(null);
                 var withUsers = list.stream().map(r -> ReviewResponse.from(r, username)).toList();
                 return ResponseEntity.ok(withUsers);

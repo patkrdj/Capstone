@@ -8,7 +8,7 @@ public record ReviewResponse(
         Integer userId,
         String username,
         Integer salesId,
-        Integer rating,
+        Float rating,
         String reviewComment,
         Instant createdAt
 ) {

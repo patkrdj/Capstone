@@ -4,6 +4,7 @@ import com.example.lapisblue.lapisblue.DTO.SignupRequest;
 import com.example.lapisblue.lapisblue.domain.Role;
 import com.example.lapisblue.lapisblue.domain.User;
 import com.example.lapisblue.lapisblue.domain.UserRoles;
+import com.example.lapisblue.lapisblue.domain.UserRolesId;
 import com.example.lapisblue.lapisblue.repository.RoleRepository;
 import com.example.lapisblue.lapisblue.repository.UserRepository;
 import com.example.lapisblue.lapisblue.repository.UserRolesRepository;
@@ -48,8 +49,9 @@ public class AuthService {
         Role role = roleRepository.findByName("USER").orElseThrow(() -> new IllegalArgumentException("Role not found"));
 
         UserRoles userRole = new UserRoles();
-        userRole.setUser_id(user.getId());
-        userRole.setRole_id(role.getId());
+        userRole.setId(new UserRolesId(user.getId(), role.getId()));
+        userRole.setUser(user);
+        userRole.setRole(role);
         userRoleRepository.save(userRole);
     }
 }
